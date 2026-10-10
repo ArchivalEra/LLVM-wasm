@@ -11,6 +11,12 @@ submodule 钉住（pin = commit，字节 = sha256）。需求书是**唯一一�
 - **M1**：`clang` 与 `lld` 已各自编成 wasm，并在 wasm 内部跑通完整链路 ——
   经内存 FS 编译 → 链接 → 产出 Side module ABI 正确的 `.so`。
 
+**体积**：一轮减重实验已做（`-Os` + lld 裁到 wasm-only），合计 brotli 从 26.06 MB 降到 21.80 MB，
+且两份更小的产物仍通过整链验收。**但仍超 SPEC §6 的 15 MB 预算 45%**，
+未打通的最强杠杆乐观估计也只到 17–19 MB ⇒ 预算目标本身待委托人定夺
+（见 `to-questionnaire-clang-wasm-m1.md` 的 C0）。
+报告：[`m1/OPT-RESULTS.md`](m1/OPT-RESULTS.md)（实验）· [`m1/OPT-REVIEW.md`](m1/OPT-REVIEW.md)（独立复核）。
+
 下一步是 **M2**（进程内薄驱动 + Worker 化 + sysroot 打包）。
 
 **体积优化实验（已完成一轮，结论已定）**：SPEC §6 的 15 MB 预算**到不了**。
