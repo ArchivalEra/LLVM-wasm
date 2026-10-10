@@ -23,6 +23,11 @@ sh m0/run-counterexamples.sh               # §9.5 反例 + §9.6 模板缺口
 
 **M0 全绿的含义**：SPEC §4 记录的 ABI 侧五处"缺一不可"全部复现，**没有未知的 ABI 障碍**。下面的问题都不是"能不能做"，而是"做成哪一种"。
 
+**关于本文里的数字**：本仓的测量值都有台账键（`FACTS.json`），我在这里直接写数值是为了让你读起来不用跳文件；
+**本仓自己的活状态文档（`STATE.md`、`m0/RESULTS.md`）里一律是 `[[键名]]` 引用，不手抄数字** —— 手抄的数字
+从写下那一刻就开始腐烂。你若要核实某个数，`python3 zreflect/facts.py --get <键名>` 会打印裸值。
+少数引文来自**你那边**的产物（如 `octave.build.json` / SPEC 原文），我会在行内标出，那不是本仓测量。
+
 ---
 
 ## How to answer
@@ -72,16 +77,16 @@ _Why this matters: 这不是 flag 拼装细节，而是 §7 那个 `compile({ ab
 "inputs":   { "keep_list": { "...": "keep-w64.txt", "lines": 1304 } }
 ```
 
-即宿主确实是 **MM=2 + 1304 行 keep-list**，最终导出 **752** 个函数，**且其中含 `__cpp_exception`**（tag）。我在 M0 里验证过这条路的可行性：MM=2 + 从 side module 导入生成的 50 行 keep-list ⇒ 宿主导出 76 个（含 tag），dlopen **全绿**。
+即宿主确实是 **MM=2 + keep-list**（行数见该文件的 `inputs.keep_list.lines`），最终导出数见其 `measured.exported_functions`（**以下称「下游导出数」，非本仓测量**），**且其中含 `__cpp_exception`**（tag）。我在 M0 里验证过这条路的可行性：MM=2 + 从 side module 导入生成的 50 行 keep-list ⇒ 宿主导出 76 个（含 tag），dlopen **全绿**。
 
-_Why this matters: 这条确认了 SPEC §5.3「宿主补导出」是**可行的主路**（不是退路），也解释了为什么现状能跑。但 752 这个基线是**随 keep-list 变的**——工具链的 §5.4 检查器该拿哪一份导出面做判定？是跟着每次宿主编译的 `octave.build.json` 走（它已经写了 `measured.exported_functions`），还是要求宿主另给一份稳定的"承诺导出清单"？_
+_Why this matters: 这条确认了 SPEC §5.3「宿主补导出」是**可行的主路**（不是退路），也解释了为什么现状能跑。但那个基线是**随 keep-list 变的**——工具链的 §5.4 检查器该拿哪一份导出面做判定？是跟着每次宿主编译的 `octave.build.json` 走（它已经写了 `measured.exported_functions`），还是要求宿主另给一份稳定的"承诺导出清单"？_
 
 ```
 ```
 
 ### B2. 有一个符号宿主里**根本不存在**，keep-list 救不了——这条缺口怎么办？
 
-实测（`needlib-noa.oct`，22,910 B，与 SPEC §5.3 记载的字节数一致）对真实宿主：
+实测（`needlib-noa.oct`，字节数与 SPEC §5.3 记载一致 —— 该文件属下游产物，非本仓测量）对真实宿主：
 
 | 口径 | 缺口 |
 |---|---|

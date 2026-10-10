@@ -1,0 +1,264 @@
+{
+ "schema": 1,
+ "generated": "2026-10-10T19:19:02+0800",
+ "_why": "事实台账：每条 = 一个**测出来**的值 + 复跑命令 + 出处。别手改，跑 zreflect/facts.py。",
+ "facts": {
+  "py_files": {
+   "value": 25,
+   "cmd": "find . -name '*.py' -not -path './.git/*' -not -path './toolchain/*' | wc -l",
+   "source": "repo",
+   "measured_at": "2026-10-10T19:19:02+0800",
+   "first_seen": "2026-10-10",
+   "note": "不含 toolchain/（emsdk 自带大量 .py，装了才算数 ⇒ 会自己变）"
+  },
+  "md_files": {
+   "value": 7,
+   "cmd": "find . -name '*.md' -not -path './.git/*' -not -path './toolchain/*' | wc -l",
+   "source": "repo",
+   "measured_at": "2026-10-10T19:19:02+0800",
+   "first_seen": "2026-10-10"
+  },
+  "py_lines": {
+   "value": 5485,
+   "cmd": "find . -name '*.py' -not -path './.git/*' -not -path './toolchain/*' -exec cat {} + | wc -l",
+   "source": "repo",
+   "measured_at": "2026-10-10T19:19:02+0800",
+   "first_seen": "2026-10-10",
+   "note": "含 vendored 的机制层（zreflect/），不含 toolchain/"
+  },
+  "md_lines": {
+   "value": 643,
+   "cmd": "find . -name '*.md' -not -path './.git/*' -not -path './toolchain/*' -exec awk 'FNR==1{b=0} /<!-- AUTO:FACTS -->/{b=1} !b' {} + | wc -l",
+   "source": "repo",
+   "measured_at": "2026-10-10T19:19:02+0800",
+   "first_seen": "2026-10-10",
+   "note": "不含机器块：块就渲染在文档里，数进去会让渲染一遍值就过期"
+  },
+  "m0_runner_scripts": {
+   "value": 3,
+   "cmd": "find m0 -maxdepth 1 -name 'run-*.sh' | wc -l",
+   "source": "repo",
+   "measured_at": "2026-10-10T19:19:02+0800",
+   "first_seen": "2026-10-10",
+   "note": "M0 的三个 runner（主链 / 反例 / MM2 证据）"
+  },
+  "m0_pass_wasm32": {
+   "value": 12,
+   "cmd": "grep -c '^PASS' m0/evidence/m0-wasm32.log",
+   "source": "m0/evidence",
+   "measured_at": "2026-10-10T19:19:02+0800",
+   "first_seen": "2026-10-10",
+   "note": "SPEC §9.1–9.7 的 PASS 行数（wasm32 档）"
+  },
+  "m0_pass_wasm64": {
+   "value": 12,
+   "cmd": "grep -c '^PASS' m0/evidence/m0-wasm64.log",
+   "source": "m0/evidence",
+   "measured_at": "2026-10-10T19:19:02+0800",
+   "first_seen": "2026-10-10",
+   "note": "SPEC §9.1–9.7 的 PASS 行数（wasm64 档）"
+  },
+  "m0_counterexample_ok": {
+   "value": 2,
+   "cmd": "grep -c '^OK' m0/evidence/counterexamples.log",
+   "source": "m0/evidence",
+   "measured_at": "2026-10-10T19:19:02+0800",
+   "first_seen": "2026-10-10",
+   "note": "§9.5 反例 + §9.6 模板缺口：两条都按预期表现"
+  },
+  "m0_wasm32_side_bytes": {
+   "value": 19653,
+   "cmd": "grep -m1 '^ARTIFACT wasm32_side_bytes ' m0/evidence/m0-wasm32.log | cut -d' ' -f3",
+   "source": "m0/evidence",
+   "measured_at": "2026-10-10T19:19:02+0800",
+   "first_seen": "2026-10-10",
+   "note": "M0 wasm32 档产物（SPEC §9 体积/导出面）",
+   "replay": false,
+   "witness": "cat m0/side.cc m0/host.cc m0/run-m0.sh m0/run-mm2-keeplist.sh m0/check-symbol-gap.mjs | sha256sum | cut -c1-16",
+   "witness_expect": "291e622f3014809a"
+  },
+  "m0_wasm32_side_exports": {
+   "value": 9,
+   "cmd": "grep -m1 '^ARTIFACT wasm32_side_exports ' m0/evidence/m0-wasm32.log | cut -d' ' -f3",
+   "source": "m0/evidence",
+   "measured_at": "2026-10-10T19:19:02+0800",
+   "first_seen": "2026-10-10",
+   "note": "M0 wasm32 档产物（SPEC §9 体积/导出面）",
+   "replay": false,
+   "witness": "cat m0/side.cc m0/host.cc m0/run-m0.sh m0/run-mm2-keeplist.sh m0/check-symbol-gap.mjs | sha256sum | cut -c1-16",
+   "witness_expect": "291e622f3014809a"
+  },
+  "m0_wasm32_host_bytes": {
+   "value": 1413116,
+   "cmd": "grep -m1 '^ARTIFACT wasm32_host_bytes ' m0/evidence/m0-wasm32.log | cut -d' ' -f3",
+   "source": "m0/evidence",
+   "measured_at": "2026-10-10T19:19:02+0800",
+   "first_seen": "2026-10-10",
+   "note": "M0 wasm32 档产物（SPEC §9 体积/导出面）",
+   "replay": false,
+   "witness": "cat m0/side.cc m0/host.cc m0/run-m0.sh m0/run-mm2-keeplist.sh m0/check-symbol-gap.mjs | sha256sum | cut -c1-16",
+   "witness_expect": "291e622f3014809a"
+  },
+  "m0_wasm32_host_exports": {
+   "value": 5790,
+   "cmd": "grep -m1 '^ARTIFACT wasm32_host_exports ' m0/evidence/m0-wasm32.log | cut -d' ' -f3",
+   "source": "m0/evidence",
+   "measured_at": "2026-10-10T19:19:02+0800",
+   "first_seen": "2026-10-10",
+   "note": "M0 wasm32 档产物（SPEC §9 体积/导出面）",
+   "replay": false,
+   "witness": "cat m0/side.cc m0/host.cc m0/run-m0.sh m0/run-mm2-keeplist.sh m0/check-symbol-gap.mjs | sha256sum | cut -c1-16",
+   "witness_expect": "291e622f3014809a"
+  },
+  "m0_wasm64_side_bytes": {
+   "value": 20041,
+   "cmd": "grep -m1 '^ARTIFACT wasm64_side_bytes ' m0/evidence/m0-wasm64.log | cut -d' ' -f3",
+   "source": "m0/evidence",
+   "measured_at": "2026-10-10T19:19:02+0800",
+   "first_seen": "2026-10-10",
+   "note": "M0 wasm64 档产物（SPEC §9 体积/导出面）",
+   "replay": false,
+   "witness": "cat m0/side.cc m0/host.cc m0/run-m0.sh m0/run-mm2-keeplist.sh m0/check-symbol-gap.mjs | sha256sum | cut -c1-16",
+   "witness_expect": "291e622f3014809a"
+  },
+  "m0_wasm64_side_exports": {
+   "value": 9,
+   "cmd": "grep -m1 '^ARTIFACT wasm64_side_exports ' m0/evidence/m0-wasm64.log | cut -d' ' -f3",
+   "source": "m0/evidence",
+   "measured_at": "2026-10-10T19:19:02+0800",
+   "first_seen": "2026-10-10",
+   "note": "M0 wasm64 档产物（SPEC §9 体积/导出面）",
+   "replay": false,
+   "witness": "cat m0/side.cc m0/host.cc m0/run-m0.sh m0/run-mm2-keeplist.sh m0/check-symbol-gap.mjs | sha256sum | cut -c1-16",
+   "witness_expect": "291e622f3014809a"
+  },
+  "m0_wasm64_host_bytes": {
+   "value": 1448809,
+   "cmd": "grep -m1 '^ARTIFACT wasm64_host_bytes ' m0/evidence/m0-wasm64.log | cut -d' ' -f3",
+   "source": "m0/evidence",
+   "measured_at": "2026-10-10T19:19:02+0800",
+   "first_seen": "2026-10-10",
+   "note": "M0 wasm64 档产物（SPEC §9 体积/导出面）",
+   "replay": false,
+   "witness": "cat m0/side.cc m0/host.cc m0/run-m0.sh m0/run-mm2-keeplist.sh m0/check-symbol-gap.mjs | sha256sum | cut -c1-16",
+   "witness_expect": "291e622f3014809a"
+  },
+  "m0_wasm64_host_exports": {
+   "value": 5796,
+   "cmd": "grep -m1 '^ARTIFACT wasm64_host_exports ' m0/evidence/m0-wasm64.log | cut -d' ' -f3",
+   "source": "m0/evidence",
+   "measured_at": "2026-10-10T19:19:02+0800",
+   "first_seen": "2026-10-10",
+   "note": "M0 wasm64 档产物（SPEC §9 体积/导出面）",
+   "replay": false,
+   "witness": "cat m0/side.cc m0/host.cc m0/run-m0.sh m0/run-mm2-keeplist.sh m0/check-symbol-gap.mjs | sha256sum | cut -c1-16",
+   "witness_expect": "291e622f3014809a"
+  },
+  "m0_mm2_keeplist_bytes": {
+   "value": 163130,
+   "cmd": "grep -m1 '^ARTIFACT mm2_keeplist_bytes ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3",
+   "source": "m0/evidence",
+   "measured_at": "2026-10-10T19:19:02+0800",
+   "first_seen": "2026-10-10",
+   "note": "§5.5 MM=2 主路的三步证据（bare / +tag / +keep-list）",
+   "replay": false,
+   "witness": "cat m0/side.cc m0/host.cc m0/run-m0.sh m0/run-mm2-keeplist.sh m0/check-symbol-gap.mjs | sha256sum | cut -c1-16",
+   "witness_expect": "291e622f3014809a"
+  },
+  "m0_mm2_keeplist_exports": {
+   "value": 76,
+   "cmd": "grep -m1 '^ARTIFACT mm2_keeplist_exports ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3",
+   "source": "m0/evidence",
+   "measured_at": "2026-10-10T19:19:02+0800",
+   "first_seen": "2026-10-10",
+   "note": "§5.5 MM=2 主路的三步证据（bare / +tag / +keep-list）",
+   "replay": false,
+   "witness": "cat m0/side.cc m0/host.cc m0/run-m0.sh m0/run-mm2-keeplist.sh m0/check-symbol-gap.mjs | sha256sum | cut -c1-16",
+   "witness_expect": "291e622f3014809a"
+  },
+  "m0_mm2_bare_exports": {
+   "value": 30,
+   "cmd": "grep -m1 '^ARTIFACT mm2_bare_exports ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3",
+   "source": "m0/evidence",
+   "measured_at": "2026-10-10T19:19:02+0800",
+   "first_seen": "2026-10-10",
+   "note": "§5.5 MM=2 主路的三步证据（bare / +tag / +keep-list）",
+   "replay": false,
+   "witness": "cat m0/side.cc m0/host.cc m0/run-m0.sh m0/run-mm2-keeplist.sh m0/check-symbol-gap.mjs | sha256sum | cut -c1-16",
+   "witness_expect": "291e622f3014809a"
+  },
+  "m0_mm2_bare_tags": {
+   "value": 0,
+   "cmd": "grep -m1 '^ARTIFACT mm2_bare_tags ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3",
+   "source": "m0/evidence",
+   "measured_at": "2026-10-10T19:19:02+0800",
+   "first_seen": "2026-10-10",
+   "note": "§5.5 MM=2 主路的三步证据（bare / +tag / +keep-list）",
+   "replay": false,
+   "witness": "cat m0/side.cc m0/host.cc m0/run-m0.sh m0/run-mm2-keeplist.sh m0/check-symbol-gap.mjs | sha256sum | cut -c1-16",
+   "witness_expect": "291e622f3014809a"
+  },
+  "m0_mm2_tagonly_exports": {
+   "value": 32,
+   "cmd": "grep -m1 '^ARTIFACT mm2_tagonly_exports ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3",
+   "source": "m0/evidence",
+   "measured_at": "2026-10-10T19:19:02+0800",
+   "first_seen": "2026-10-10",
+   "note": "§5.5 MM=2 主路的三步证据（bare / +tag / +keep-list）",
+   "replay": false,
+   "witness": "cat m0/side.cc m0/host.cc m0/run-m0.sh m0/run-mm2-keeplist.sh m0/check-symbol-gap.mjs | sha256sum | cut -c1-16",
+   "witness_expect": "291e622f3014809a"
+  },
+  "m0_keep_list_symbols": {
+   "value": 50,
+   "cmd": "grep -m1 '^ARTIFACT keep_list_symbols ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3",
+   "source": "m0/evidence",
+   "measured_at": "2026-10-10T19:19:02+0800",
+   "first_seen": "2026-10-10",
+   "note": "§5.5 MM=2 主路的三步证据（bare / +tag / +keep-list）",
+   "replay": false,
+   "witness": "cat m0/side.cc m0/host.cc m0/run-m0.sh m0/run-mm2-keeplist.sh m0/check-symbol-gap.mjs | sha256sum | cut -c1-16",
+   "witness_expect": "291e622f3014809a"
+  },
+  "emcc_version": {
+   "value": "6.0.12",
+   "cmd": "toolchain/emsdk/upstream/emscripten/emcc --version 2>/dev/null | head -1 | grep -oE '[0-9]+[.][0-9]+[.][0-9]+' | head -1",
+   "source": "toolchain",
+   "measured_at": "2026-10-10T19:19:02+0800",
+   "first_seen": "2026-10-10",
+   "note": "工具链侧 emcc 版本（SPEC §8 只记档不拦）"
+  },
+  "emcc_from_repo_toolchain": {
+   "value": "yes",
+   "cmd": "test -x toolchain/emsdk/upstream/emscripten/emcc && echo yes",
+   "source": "toolchain",
+   "measured_at": "2026-10-10T19:19:02+0800",
+   "first_seen": "2026-10-10",
+   "note": "量的是本仓 toolchain/ 的 emcc，不是系统 PATH 里那个"
+  },
+  "clang_major": {
+   "value": 24,
+   "cmd": "toolchain/emsdk/upstream/bin/clang --version 2>/dev/null | head -1 | grep -oE 'clang version [0-9]+' | head -1 | grep -oE '[0-9]+$'",
+   "source": "toolchain",
+   "measured_at": "2026-10-10T19:19:02+0800",
+   "first_seen": "2026-10-10",
+   "note": "SPEC §4.2 的旗标随这个版本漂"
+  },
+  "lld_major": {
+   "value": 24,
+   "cmd": "toolchain/emsdk/upstream/bin/wasm-ld --version 2>/dev/null | head -1 | grep -oE 'LLD [0-9]+' | head -1 | grep -oE '[0-9]+$'",
+   "source": "toolchain",
+   "measured_at": "2026-10-10T19:19:02+0800",
+   "first_seen": "2026-10-10",
+   "note": "SPEC §4.2 的旗标随这个版本漂"
+  },
+  "gates_total": {
+   "value": 14,
+   "cmd": "python3 zreflect/registry.py --all-runnable 2>/dev/null | wc -l",
+   "source": "repo",
+   "measured_at": "2026-10-10T19:19:02+0800",
+   "first_seen": "2026-10-10",
+   "note": "发现式名录（手写清单会漂）"
+  }
+ }
+}

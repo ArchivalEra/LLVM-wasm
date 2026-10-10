@@ -1,0 +1,40 @@
+== M0 (wasm64) ==
+-- toolchain
+clang version 24.0.0git (https:/github.com/llvm/llvm-project 55ea1f4ebea23d0355d5cdb075f1e12f28ab82d0)
+emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.12 (5488e0871d46d19a3209988190fa6a653126256f)
+-- [1] clang frontend (SPEC 4.1)
+-- [2] wasm-ld (SPEC 4.2, LLVM-24 corrected)
+-- [3] emscripten host main module (MAIN_MODULE=1)
+em++: warning: dynamic linking + pthreads is experimental [-Wexperimental]
+em++: warning: -pthread + ALLOW_MEMORY_GROWTH may run non-wasm code slowly, consider -sGROWABLE_ARRAYBUFFERS=2 [-Wpthreads-mem-growth]
+-- [4] dlopen + call the side module
+== M0 host: dlopen side module ==
+PASS dlopen
+PASS dlsym(minifn): got=1 want=1
+PASS dlsym(miniprobe): got=1 want=1
+PASS dlsym(minithrow): got=1 want=1
+PASS dlsym(ministl): got=1 want=1
+PASS minifn(7): got=10 want=10
+PASS miniprobe([2,3;1,4]): got=5 want=5
+PASS miniprobe([1,2;3,4]): got=-2 want=-2
+no-throw
+PASS minithrow(0): got=0 want=0
+caught:thrown-from-oct
+PASS minithrow(1): got=1 want=1
+caught:octave-error-from-oct
+PASS minithrow(2): got=1 want=1
+PASS ministl(42): got=42:2 want=42:2
+=== ALL PASS ===
+-- [5] symbol gap (SPEC 5.4)
+side env imports: 47
+host exports: 5796
+host tag exports: 2 [__c_longjmp, __cpp_exception]
+missing: 0
+missing tags: 0
+-- [6] artifacts
+ARTIFACT wasm64_side_bytes 20041
+ARTIFACT wasm64_side_exports 9
+ARTIFACT wasm64_host_bytes 1448809
+ARTIFACT wasm64_host_exports 5796
+ARTIFACT wasm64_side_sha256 208d97aef9520274529d8cdc8f560149fd631bb7d9025bed496a12aa961f106e
+== M0 (wasm64) done ==

@@ -75,4 +75,24 @@ while read -r s; do FLAGS="$FLAGS -Wl,--export-if-defined=$s"; done < keep.txt
   $FLAGS -o keeplist.js "$ROOT/host.cc" 2>/dev/null
 report "keeplist" keeplist.wasm
 echo "   --- full run ---"
-timeout 180 node keeplist.js
+timeout 180 node keeplist.js | tee keeplist.log
+
+# ---------------------------------------------------- machine-readable summary
+# facts.py greps these ARTIFACT lines; the ledger cites them so the numbers are
+# produced here and nowhere else.
+echo "-- artifacts"
+printf 'ARTIFACT mm2_bare_exports %s\n'     "$(node -e '
+const fs=require("fs");
+console.log(WebAssembly.Module.exports(new WebAssembly.Module(fs.readFileSync("bare.wasm"))).length)')"
+printf 'ARTIFACT mm2_bare_tags %s\n'        "$(node -e '
+const fs=require("fs");
+console.log(WebAssembly.Module.exports(new WebAssembly.Module(fs.readFileSync("bare.wasm"))).filter(e=>e.kind==="tag").length)')"
+printf 'ARTIFACT mm2_tagonly_exports %s\n'  "$(node -e '
+const fs=require("fs");
+console.log(WebAssembly.Module.exports(new WebAssembly.Module(fs.readFileSync("tagonly.wasm"))).length)')"
+printf 'ARTIFACT mm2_keeplist_bytes %s\n'   "$(stat -c%s keeplist.wasm)"
+printf 'ARTIFACT mm2_keeplist_exports %s\n' "$(node -e '
+const fs=require("fs");
+console.log(WebAssembly.Module.exports(new WebAssembly.Module(fs.readFileSync("keeplist.wasm"))).length)')"
+printf 'ARTIFACT keep_list_symbols %s\n'    "$(wc -l < keep.txt)"
+printf 'ARTIFACT mm2_keeplist_pass %s\n'    "$(grep -c '^PASS' keeplist.log 2>/dev/null || echo 0)"

@@ -1,0 +1,51 @@
+{
+  "_why": [
+    "翻案台账：每条 = 一条**已被推翻**的断言。`text` 是它的特征片段（会被当搜索串在活状态文档里找）。",
+    "`why` 说它为什么错，`evidence` 给复跑方式或出处，`fixed_in` 说现在哪里说对了。",
+    "`check_retractions.py` 的判据：活状态文档里只要出现 `text`，**该行必须带更正标记**。"
+  ],
+  "retractions": [
+    {
+      "id": "R-001",
+      "text": "keep-list 从 IMPORT 段生成，也收不到 tag 这类非函数项",
+      "why": "初判错误。实测 `wasm-dis` 把 tag 导入打成 `(import \"env\" \"__cpp_exception\" (tag ...))`，`gen-keep-list.sh` 的正则 `^ \\(import \"(env|GOT\\..*)\" \"…\"` 能匹配到它。同一批初判还说「下游今天没做」—— 也错：下游 `octave.build.json` 记着 `main_module: 2`、`measured.exported_functions: 752`，那 752 个导出里含 `__cpp_exception`。",
+      "evidence": "sh m0/run-mm2-keeplist.sh（第 3 步：keep-list 50 个符号含 tag ⇒ 宿主导出 76 个含 tag ⇒ dlopen 全绿）",
+      "fixed_in": "m0/RESULTS.md 的 F-3 节（含更正表）；STATE.md 的「宿主符号契约」节"
+    },
+    {
+      "id": "R-002",
+      "text": "MAIN_MODULE=2 下异常 tag 不导出，side module 装不上",
+      "why": "结论方向对但**过强**：它成立只在「纯 MM=2、无 keep-list」这一种配置。加上从 side 导入生成的 keep-list（含 tag）后完全可用。说成「MM=2 路线不行」会把人误导去用体积大 8.7 倍的 MM=1。",
+      "evidence": "sh m0/run-mm2-keeplist.sh（三步对照：bare 30 导出/0 tag 失败 → 只补 tag 32 导出仍失败 → +keep-list 76 导出全绿）",
+      "fixed_in": "m0/RESULTS.md §9「宿主配置的实测代价」表"
+    },
+    {
+      "id": "R-003",
+      "text": "符号缺口检查器直接比 env 导入与宿主导出",
+      "why": "该口径会**报假缺口**。`--export-dynamic` 让 side 既导入又导出同一符号（GOT 自引用），而 emscripten 的 `resolveSymbol` 查 `wasmImports → localScope → moduleExports` —— side 自己的导出是合法解析源。实测同一条夹具：不扣自导出报 2 个缺口，扣掉后只有 1 个真缺口（`_ZNSt3__213basic_ostreamIcNS_11char_traitsIcEEElsEm`，它在宿主里既无定义也不在导出表）。",
+      "evidence": "node m0/check-symbol-gap.mjs（已实现修正口径）；对照：原口径见 SPEC v2 §5.2",
+      "fixed_in": "m0/check-symbol-gap.mjs（扣 sideExports + tag 单列）；SPEC v3 §5.4 已采纳"
+    },
+    {
+      "id": "R-004",
+      "text": "去掉了 -fwasm-exceptions 就必须装不上",
+      "why": "SPEC §9.5 与 §4.4 的 v2 原文预期「`LinkError: Incompatible version`」。实测（6.0.12 + LLVM 24）**装得上**：`PASS dlopen`、通过 9 项检查，直到第一次 C++ throw 才抛未捕获 `WebAssembly.Exception`。失效在**运行期首次 throw**，不在加载期。",
+      "evidence": "sh m0/run-counterexamples.sh（§9.5 节：no-EH side `PASS dlopen` 通过 9 项后才炸）",
+      "fixed_in": "m0/RESULTS.md 的 F-5；SPEC v3 §9.5 已按此更正措辞"
+    },
+    {
+      "id": "R-005",
+      "text": "本仓以 submodule 钉住 Einfacht",
+      "why": "submodule 的 gitlink **属于被追踪内容**，与「Einfacht 一切不进 git」冲突；且 `Einfacht/` 放在仓库根下会让 `GATE_REPO` 解析成 `Einfacht/` 而不是本仓，闸门会查错对象（`zreflect/gate.py` 的 `GATE_REPO` 默认取包目录上一级）。",
+      "evidence": "python3 -c \"import sys;sys.path.insert(0,'zreflect');from gate import GATE_REPO;print(GATE_REPO)\" ⇒ 打印本仓根",
+      "fixed_in": "机制层 vendored 到仓库根（zreflect/ + reflect-hooks/ + gates-selftest.sh），当普通文件追踪"
+    },
+    {
+      "id": "R-006",
+      "text": "裸数字判据会拦住手抄的测量值",
+      "why": "在**本仓的采集器实现**上不成立过一段时间：`_artifact()` 与 `_run()` 取回的值是**字符串**，而 `check_facts.problems()` 的裸数字判据只查 `isinstance(v, int)` ⇒ 字符串值的键**根本不进扫描**，手抄同样的数字全绿。实测复现：把「19653 字节」写进 STATE.md 正文，闸门报 OK。值型别错 = 判据静默失效（这正是本系统最恨的「命令成功、值稳定、复跑永远通过，而它量的不是想量的」仪器失真家族）。",
+      "evidence": "python3 zreflect/check_facts.py（在 STATE.md 正文插入「19653 字节」后应报裸数字；修前 rc=0、修后 rc=1）",
+      "fixed_in": "zreflect/facts.py 的 `_artifact_int()`（ARTIFACT 值转 int）+ `gates_total` / `m0_runner_scripts` / `clang_major` / `lld_major` 同样转 int"
+    }
+  ]
+}

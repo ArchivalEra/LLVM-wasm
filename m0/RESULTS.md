@@ -43,7 +43,7 @@ PASS ministl(42): got=42:2 want=42:2         ← std::map + std::ostringstream
 | 2 | 缺 `-isystem <SR>/include/compat` ⇒ `'xlocale.h' file not found` | ✅ 成立 |
 | 3 | 缺 `-pthread`+`--shared-memory` ⇒ `mismatch in shared state of memory` | ✅ 成立 |
 | 4 | 缺 `crtbegin-mt.o`+`--export=_emscripten_tls_init` ⇒ `tlsInitFunc is not a function` | ✅ 成立 |
-| 5 | 缺 `--export-dynamic` ⇒ 产物被 GC 成极小、导出全没 | ✅ 成立（无它时 976 B；有它时 19,653 B） |
+| 5 | 缺 `--export-dynamic` ⇒ 产物被 GC 成极小、导出全没 | ✅ 成立（无它时极小；有它时 [[m0_wasm32_side_bytes]] B 量级） |
 
 五条全部复现。**但 SPEC §4.2 的命令行本身要改**，见 §5。
 
@@ -53,11 +53,11 @@ PASS ministl(42): got=42:2 want=42:2         ← std::map + std::ostringstream
 
 | 量 | wasm32 | wasm64 | 复跑 |
 |---|---|---|---|
-| side module（`minifn.so`） | **19,653 B** | **20,043 B** | `stat -c%s build-*/minifn.so` |
-| 其中 gzip -9 | 4,584 B | — | `gzip -9 -c build-wasm32/minifn.so \| wc -c` |
-| side 的 exports | 9 | 9 | `node -e '…Module.exports…'` |
-| side 的 env 导入 | 43 | 43 | 同上 |
-| 宿主导出（`MAIN_MODULE=1` + wasm EH） | **5,790** | **5,796** | `node -e '…host.wasm…'` |
+| side module（`minifn.so`） | **[[m0_wasm32_side_bytes]] B** | **[[m0_wasm64_side_bytes]] B** | `stat -c%s build-*/minifn.so` |
+| 其中 gzip -9 | 见下方复跑命令（一次性测量，**未入台账**） | — | `gzip -9 -c build-wasm32/minifn.so \| wc -c` |
+| side 的 exports | [[m0_wasm32_side_exports]] | [[m0_wasm64_side_exports]] | `node -e '…Module.exports…'` |
+| side 的 env 导入 | 见复跑命令（一次性测量，**未入台账**） | 同 | 同上 |
+| 宿主导出（`MAIN_MODULE=1` + wasm EH） | **[[m0_wasm32_host_exports]]** | **[[m0_wasm64_host_exports]]** | `node -e '…host.wasm…'` |
 
 宿主体积是 **MAIN_MODULE=1 的代价**（1.41 MB / 1.45 MB）——它不做 DCE，把所有符号都导出去。
 这是 §5.3「宿主补导出」那条路的最宽松形态。
@@ -70,9 +70,9 @@ SPEC §5.3 列了三条路。M0 把它们都跑了：
 
 | 做法 | 实测结果 |
 |---|---|
-| 不链 `.a`（本 M0 的选择） | side 19,653 B ✅ **跑通**，但依赖宿主导出面 |
-| 链 libc++ `.a` | SPEC 记录 1,119,168 B、1204 个仍找不到 ⇒ 错路；**M0 未重复**（有前证，见 SPEC §5.3） |
-| 宿主补导出（`MAIN_MODULE=1`） | 宿主 1.41 MB，**缺口 0** ✅ |
+| 不链 `.a`（本 M0 的选择） | side [[m0_wasm32_side_bytes]] B ✅ **跑通**，但依赖宿主导出面 |
+| 链 libc++ `.a` | SPEC §5.3 记录：+48× 体积、约千余个仍找不到 ⇒ 错路；**M0 未重复**（有前证；引用值见 SPEC 原文） |
+| 宿主补导出（`MAIN_MODULE=1`） | 宿主见 §9 表，**缺口 0** ✅ |
 
 **关键修正**：SPEC 与下游都记 `MAIN_MODULE=2`。**该配置下 M0 根本装不上**，见 §5 F-3。
 
@@ -113,7 +113,7 @@ SPEC 与下游都写 `MAIN_MODULE=2`（DCE 版 + keep-list）。实测：
 
 | 宿主配置 | 导出数 | tag 导出 | 结果 |
 |---|---|---|---|
-| `MAIN_MODULE=1` | 5,790 | `__cpp_exception`, `__c_longjmp` | ✅ dlopen 成功，全绿 |
+| `MAIN_MODULE=1` | [[m0_wasm32_host_exports]] | `__cpp_exception`, `__c_longjmp` | ✅ dlopen 成功，全绿 |
 | `MAIN_MODULE=2` | 30 | **0** | ❌ `LinkError: Import #14 "env" "__cpp_exception": tag import requires a WebAssembly.Tag` |
 
 根因：`__cpp_exception` 这个 **wasm tag** 定义在 libunwind
@@ -122,12 +122,12 @@ SPEC 与下游都写 `MAIN_MODULE=2`（DCE 版 + keep-list）。实测：
 
 ⇒ **`MAIN_MODULE=2` 路线必须把 tag 显式补进导出**，否则异常模型根本跨不过边界。
 
-**⚠️ 本条的两处初判已被后续实测推翻**（2026-10-10 更正，保留原文以便追溯）：
+**⚠️ 本条的两处初判已被后续实测推翻**（本行含更正标记；更正日期见 git 历史）：
 
 | 初判（错） | 实测（对） |
 |---|---|
 | 「keep-list 从 IMPORT 段生成，**收不到 tag 这类非函数项**」 | ❌ 错。`wasm-dis` 把 tag 导入打成 `(import "env" "__cpp_exception" (tag …))`，`gen-keep-list.sh` 的正则 `^ \(import "(env\|GOT\..*)" "…"` **能匹配到**（实测：对 M0 side 跑同一套管道，`__cpp_exception` 在输出里） |
-| 「这一步下游**今天没做**」 | ❌ 错。下游产物自带的 `octave.build.json` 写着 `main_module: 2`、`measured.exported_functions: 752`，而那 752 个导出里**含 `__cpp_exception`** ⇒ 下游**已经做到了** |
+| 「这一步下游**今天没做**」 | ❌ 错。下游产物自带的 `octave.build.json` 写着 `main_module: 2`、`measured.exported_functions` 为一个三位数（**该数字出自下游产物，非本仓测量；见该文件**），而那批导出里**含 `__cpp_exception`** ⇒ 下游**已经做到了** |
 
 **修正后的结论**：tag 缺口是真的（纯 MM=2、无 keep-list 时 dlopen 直接 `LinkError`），
 但**修法是现成的**——把 tag 名纳入 keep-list 即可。实测验证：MM=2 + 从 side 导入
@@ -171,7 +171,7 @@ no-EH side: tag imports = 0     (EH side: 1)
 
 | # | 标准 | 结果 |
 |---|---|---|
-| 1 | 能编：最小 C++ → side module | ✅ `minifn`，19,653 B |
+| 1 | 能编：最小 C++ → side module | ✅ `minifn`，[[m0_wasm32_side_bytes]] B |
 | 2 | 能装：被主模块 dlopen | ✅ `PASS dlopen` |
 | 3 | 能调 + 回调宿主 | ✅ `miniprobe` 返回 5 / -2 |
 | 4 | 异常双向穿越 | ✅ `minithrow(1)` / `minithrow(2)` |
@@ -199,7 +199,7 @@ no-EH side: tag imports = 0     (EH side: 1)
    恰好被扫到），并把 `missing tags` 单列进 §5.4 的报错。
 6. **MM=2 主路可行**：`run-mm2-keeplist.sh` 三步证据证明
    「MM=2 + 从 side 导入生成的 keep-list」可以 dlopen 全绿 ⇒ **不必为了异常
-   退回 MM=1**（MM=1 的宿主体积代价：1.41 MB vs keep-list 版 163 KB，见 §9）。
+   退回 MM=1**（MM=1 的宿主体积代价见 §9 表）。
 
 ---
 
@@ -222,11 +222,11 @@ no-EH side: tag imports = 0     (EH side: 1)
 
 | 宿主配置 | 导出数 | tag | 体积 | 结果 |
 |---|---|---|---|---|
-| `MAIN_MODULE=2` bare | 30 | 无 | — | ❌ `LinkError`：缺 tag |
-| `MAIN_MODULE=2` + 只导 tag | 32 | 有 | — | ❌ 仍缺其余符号 |
-| `MAIN_MODULE=2` + 50 行 keep-list | 76 | 有 | **163,130 B** | ✅ 全绿 |
-| `MAIN_MODULE=1`（无 DCE） | 5,790 | 有 | **1,413,116 B** | ✅ 全绿 |
+| `MAIN_MODULE=2` bare | [[m0_mm2_bare_exports]] | 无（[[m0_mm2_bare_tags]] 个） | — | ❌ `LinkError`：缺 tag |
+| `MAIN_MODULE=2` + 只导 tag | [[m0_mm2_tagonly_exports]] | 有 | — | ❌ 仍缺其余符号 |
+| `MAIN_MODULE=2` + [[m0_keep_list_symbols]] 行 keep-list | [[m0_mm2_keeplist_exports]] | 有 | **[[m0_mm2_keeplist_bytes]] B** | ✅ 全绿 |
+| `MAIN_MODULE=1`（无 DCE） | [[m0_wasm32_host_exports]] | 有 | **[[m0_wasm32_host_bytes]] B** | ✅ 全绿 |
 
 复跑：`sh run-mm2-keeplist.sh`（三行一组依次验证）。
 ⇒ **MM=2 + keep-list 是正确的主路**；MM=1 是把 8.7× 的体积当"省事"来买。
-下游当前用的正是 MM=2 + 1304 行 keep-list（`octave.build.json`）。
+下游当前用的正是 MM=2 + keep-list（行数见下游 `octave.build.json` 的 `inputs.keep_list.lines`，**非本仓测量**）。

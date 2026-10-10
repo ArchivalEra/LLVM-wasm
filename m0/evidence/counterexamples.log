@@ -1,0 +1,16 @@
+== SPEC 9.5: exception-model mismatch must be caught ==
+no-EH side imports 0 tag(s) (EH side imports: 1)
+OK (but note the mode): the no-EH side INSTALLED successfully and
+    passed 9 checks before dying — it does NOT fail at dlopen.
+    It dies at the first C++ throw, as an unhandled WebAssembly.Exception.
+    observed: PASS dlopen
+
+== SPEC 9.6: STL template gap must be named, not silently stubbed ==
+side env imports: 37
+host exports: 5790
+host tag exports: 2 [__c_longjmp, __cpp_exception]
+missing: 0
+missing tags: 0
+OK: no host-symbol gap for the STL fixture (runs without stubs).
+
+== counter-examples as expected ==

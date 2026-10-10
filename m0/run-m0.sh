@@ -75,4 +75,20 @@ node host.js
 echo "-- [5] symbol gap (SPEC 5.4)"
 node "$ROOT/check-symbol-gap.mjs" minifn.so host.wasm
 
+# ---------------------------------------------------- machine-readable summary
+# One ARTIFACT line per measured value, namespaced by ARCH (wasm32 and wasm64
+# write the same log shape into different files, so the keys must not collide).
+# facts.py greps these; the ledger cites them, so the numbers have exactly one
+# producer (the runner) instead of being hand-copied into docs.
+echo "-- [6] artifacts"
+printf 'ARTIFACT %s_side_bytes %s\n'   "$ARCH" "$(stat -c%s minifn.so)"
+printf 'ARTIFACT %s_side_exports %s\n' "$ARCH" "$(node -e '
+const fs=require("fs");
+console.log(WebAssembly.Module.exports(new WebAssembly.Module(fs.readFileSync("minifn.so"))).length)')"
+printf 'ARTIFACT %s_host_bytes %s\n'   "$ARCH" "$(stat -c%s host.wasm)"
+printf 'ARTIFACT %s_host_exports %s\n' "$ARCH" "$(node -e '
+const fs=require("fs");
+console.log(WebAssembly.Module.exports(new WebAssembly.Module(fs.readFileSync("host.wasm"))).length)')"
+printf 'ARTIFACT %s_side_sha256 %s\n'  "$ARCH" "$(sha256sum minifn.so | cut -d' ' -f1)"
+
 echo "== M0 ($ARCH) done =="
