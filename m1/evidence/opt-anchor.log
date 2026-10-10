@@ -1,0 +1,19 @@
+# anchor 配置（MinSizeRel → -Os）的构建与体积证据
+# 复跑: EXP_JOBS=20 bash m1/exp-run.sh anchor
+== ccache: ccache version 4.14.1 dir=/mnt/hdd/zcode-projects/LLVM-wasm/toolchain/ccache ==
+== exp[anchor]: cmake configure (clang, build_type=MinSizeRel) ==
+   configure OK; ninja -j24 clang
+   build OK in 439s
+-- artifacts (/mnt/hdd/zcode-projects/LLVM-wasm/m1/build-exp-anchor)
+ARTIFACT anchor_clang_js 75755
+ARTIFACT anchor_clang_wasm 51580817
+ARTIFACT anchor_clang_wasm_gzip 18223237
+ARTIFACT anchor_clang_wasm_brotli 13301149
+-- ccache stats
+Cacheable calls:    150 / 3118 ( 4.81%)
+  Hits:               1 /  150 ( 0.67%)
+  Misses:           149 /  150 (99.33%)
+Local storage:
+  Cache size (GB):  0.0 / 60.0 ( 0.00%)
+  Hits:               1 /  150 ( 0.67%)
+  Misses:           149 /  150 (99.33%)

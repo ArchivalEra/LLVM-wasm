@@ -1,0 +1,30 @@
+== [1] clang.wasm: compile ==  (/mnt/hdd/zcode-projects/LLVM-wasm/m1/build-exp-anchor/bin)
+   staged 1609 sysroot files
+PASS clang exits 0: rc=0
+PASS hello.o produced: 470 bytes
+
+== [2] lld.wasm (wasm-ld): link ==  (/mnt/hdd/zcode-projects/LLVM-wasm/m1/build-lld/bin/lld-wasm-only.js)
+   staged 1609 sysroot files
+   argv: -mwasm32 -o /src/minifn.so --strip-debug --export=__wasm_call_ctors --export=_emscripten_tls_init --export-dynamic --unresolved-symbols=import-dynamic -shared --shared-memory --no-stack-first /sysroot/lib/wasm32-emscripten/pic/crtbegin-mt.o /src/hello.o -L/sysroot/lib/wasm32-emscripten/pic -mllvm -exception-model=wasm
+PASS wasm-ld exits 0: rc=0
+PASS minifn.so produced: 976 bytes
+
+== [3] side-module ABI check ==
+PASS exports minifn: __wasm_call_ctors,_emscripten_tls_init,minifn
+PASS exports __wasm_call_ctors
+PASS exports _emscripten_tls_init
+PASS imports env.memory (side module shape)
+PASS imports __memory_base / __table_base (relocatable)
+   GOT imports: 0 (0 is legitimate for a fixture with no cross-module symbol addresses)
+PASS binary carries the dylink section name
+   exports: __wasm_call_ctors, _emscripten_tls_init, minifn
+   env imports: 6
+-- artifacts
+ARTIFACT m1_acceptance_pass 10
+ARTIFACT m1_sidemodule_bytes 976
+
+=== ALL PASS ===
+# 这行的输入：
+#   M1_CLANG_BIN=m1/build-exp-anchor/bin M1_LLD_BIN=m1/build-lld/bin \
+#   M1_LLD_JS=lld-wasm-only.js node m1/acceptance-full.mjs
+# 即「本轮最好的 clang（anchor, -Os）+ 本轮最好的 lld（wasm-only）」整链验收。

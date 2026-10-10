@@ -49,6 +49,11 @@
 /m1/build-*/
 /m1/acceptance/*.o
 /m1/acceptance/*.so
+# 体积实验（见 m1/OPT-RESULTS.md）：实验构建目录与产物全部不入库，
+# 入库的只有脚本 + `ARTIFACT` 行所在的日志（m1/evidence/**/*.log）。
+/m1/build-exp-*/
+/m1/evidence/**/*.wasm
+/m1/evidence/**/*.js
 
 # ==============================================================================
 # 6) 放行清单：给委托人的问卷（顶层单文件）

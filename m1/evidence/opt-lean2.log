@@ -1,0 +1,32 @@
+===== config=lean2 tools=clang build_type=MinSizeRel
+# CXX_FLAGS: -Os -fno-rtti -fno-unwind-tables -fno-asynchronous-unwind-tables -fwasm-exceptions
+== ccache: ccache version 4.14.1 dir=/mnt/hdd/zcode-projects/LLVM-wasm/toolchain/ccache (via CMAKE_*_COMPILER_LAUNCHER)
+== exp[lean2]: cmake configure (clang, build_type=MinSizeRel) ==
+FATAL: configure 失败
+-- Performing Test CXX_SUPPORTS_CXX98_COMPAT_EXTRA_SEMI_FLAG
+-- Performing Test CXX_SUPPORTS_CXX98_COMPAT_EXTRA_SEMI_FLAG - Success
+-- Performing Test CXX_SUPPORTS_SUGGEST_OVERRIDE_FLAG
+-- Performing Test CXX_SUPPORTS_SUGGEST_OVERRIDE_FLAG - Success
+-- Performing Test CXX_WSUGGEST_OVERRIDE_ALLOWS_ONLY_FINAL
+-- Performing Test CXX_WSUGGEST_OVERRIDE_ALLOWS_ONLY_FINAL - Success
+-- Performing Test C_WCOMMENT_ALLOWS_LINE_WRAP
+-- Performing Test C_WCOMMENT_ALLOWS_LINE_WRAP - Success
+-- Performing Test C_SUPPORTS_MISLEADING_INDENTATION_FLAG
+-- Performing Test C_SUPPORTS_MISLEADING_INDENTATION_FLAG - Success
+-- Performing Test CXX_SUPPORTS_MISLEADING_INDENTATION_FLAG
+-- Performing Test CXX_SUPPORTS_MISLEADING_INDENTATION_FLAG - Success
+-- Performing Test C_SUPPORTS_CTAD_MAYBE_UNSUPPORTED_FLAG
+-- Performing Test C_SUPPORTS_CTAD_MAYBE_UNSUPPORTED_FLAG - Success
+-- Performing Test CXX_SUPPORTS_CTAD_MAYBE_UNSUPPORTED_FLAG
+-- Performing Test CXX_SUPPORTS_CTAD_MAYBE_UNSUPPORTED_FLAG - Success
+-- Performing Test LINKER_SUPPORTS_COLOR_DIAGNOSTICS
+-- Performing Test LINKER_SUPPORTS_COLOR_DIAGNOSTICS - Success
+CMake Error at cmake/modules/HandleLLVMOptions.cmake:1244 (message):
+  Exception handling requires RTTI.  You must set LLVM_ENABLE_RTTI to ON
+Call Stack (most recent call first):
+  CMakeLists.txt:1144 (include)
+
+
+-- Configuring incomplete, errors occurred!
+# config lean2  (2026-10-10T21:52:59+08:00)
+# build_type/obj dir: /mnt/hdd/zcode-projects/LLVM-wasm/m1/build-exp-lean2

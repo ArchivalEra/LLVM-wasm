@@ -17,8 +17,18 @@ import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
 const ROOT = dirname(new URL(import.meta.url).pathname);
-const BIN = join(ROOT, 'build-clang', 'bin');
-const LLD_BIN = join(ROOT, 'build-lld', 'bin');
+// 默认跑 M1 基线产物。体积实验要复核「降了体积还能不能编」时，用环境变量把
+// 两个模块指到实验产物上，例如：
+//   M1_CLANG_BIN=m1/build-exp-anchor/bin M1_LLD_BIN=m1/build-exp-anchor/bin \
+//   M1_LLD_JS=lld-wasm-only.js node m1/acceptance-full.mjs
+const BIN = process.env.M1_CLANG_BIN
+  ? (process.env.M1_CLANG_BIN.startsWith('/') ? process.env.M1_CLANG_BIN : join(ROOT, '..', process.env.M1_CLANG_BIN))
+  : join(ROOT, 'build-clang', 'bin');
+const LLD_BIN = process.env.M1_LLD_BIN
+  ? (process.env.M1_LLD_BIN.startsWith('/') ? process.env.M1_LLD_BIN : join(ROOT, '..', process.env.M1_LLD_BIN))
+  : join(ROOT, 'build-lld', 'bin');
+const LLD_JS = process.env.M1_LLD_JS || 'lld.js';
+const CLANG_JS = process.env.M1_CLANG_JS || 'clang.js';
 const SR = join(ROOT, '..', 'toolchain/emsdk/upstream/emscripten/cache/sysroot');
 const OUT = join(ROOT, 'acceptance');
 
@@ -63,8 +73,8 @@ function stageSysroot(fs) {
 mkdirSync(OUT, { recursive: true });
 
 // ============================================================ 1. compile
-console.log('== [1] clang.wasm: compile ==');
-const createClang = require(join(BIN, 'clang.js'));
+console.log(`== [1] clang.wasm: compile ==  (${BIN})`);
+const createClang = require(join(BIN, CLANG_JS));
 const clang = await createClang({ print: () => {}, printErr: () => {}, noInitialRun: true });
 clang.FS.mkdirTree('/src');
 clang.FS.writeFile('/src/hello.cc', SOURCE);
@@ -84,8 +94,8 @@ check('hello.o produced', !!obj && obj.length > 0, obj ? `${obj.length} bytes` :
 if (obj) writeFileSync(join(OUT, 'hello.o'), obj);
 
 // ============================================================ 2. link
-console.log('\n== [2] lld.wasm (wasm-ld): link ==');
-const createLld = require(join(LLD_BIN, 'lld.js'));
+console.log(`\n== [2] lld.wasm (wasm-ld): link ==  (${LLD_BIN}/${LLD_JS})`);
+const createLld = require(join(LLD_BIN, LLD_JS));
 const lldErr = [];
 const lld = await createLld({ print: (x) => lldErr.push(x), printErr: (x) => lldErr.push(x), noInitialRun: true, thisProgram: 'wasm-ld' });
 const staged2 = stageSysroot(lld.FS);

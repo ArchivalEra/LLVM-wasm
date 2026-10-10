@@ -1,0 +1,9 @@
+# COS-1 证据：只含 wasm 驱动的 lld
+# 构建: bash m1/patch-lld-wasm-only.sh && (cd m1/build-lld && ninja lld-wasm-only)
+# 验收: M1_LLD_BIN=m1/build-lld/bin M1_LLD_JS=lld-wasm-only.js node m1/acceptance-lld-only.mjs
+ARTIFACT lld_wasmonly_raw 33358910
+ARTIFACT lld_wasmonly_gzip 11884293
+ARTIFACT lld_wasmonly_brotli 8495303
+ARTIFACT lld_baseline_O3_raw 38912004
+ARTIFACT lld_baseline_O3_gzip 13601263
+ARTIFACT lld_baseline_O3_brotli 9660186
