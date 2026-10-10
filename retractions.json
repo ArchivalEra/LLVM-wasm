@@ -46,6 +46,13 @@
       "why": "在**本仓的采集器实现**上不成立过一段时间：`_artifact()` 与 `_run()` 取回的值是**字符串**，而 `check_facts.problems()` 的裸数字判据只查 `isinstance(v, int)` ⇒ 字符串值的键**根本不进扫描**，手抄同样的数字全绿。实测复现：把「19653 字节」写进 STATE.md 正文，闸门报 OK。值型别错 = 判据静默失效（这正是本系统最恨的「命令成功、值稳定、复跑永远通过，而它量的不是想量的」仪器失真家族）。",
       "evidence": "python3 zreflect/check_facts.py（在 STATE.md 正文插入「19653 字节」后应报裸数字；修前 rc=0、修后 rc=1）",
       "fixed_in": "zreflect/facts.py 的 `_artifact_int()`（ARTIFACT 值转 int）+ `gates_total` / `m0_runner_scripts` / `clang_major` / `lld_major` 同样转 int"
+    },
+    {
+      "id": "R-007",
+      "text": "基线配置是 -O1（所以 wasm-opt 还有后处理空间）",
+      "why": "写 handoff 时我把 `m1/build-clang-wasm.sh` 里的 `-DCMAKE_C_FLAGS=\"-O1\"` 当成了实际优化档，并据此论证「体积不在可被 Binaryen 消掉的冗余里」。**两处都错**：(1) 基线实际是 `-O3` —— `CMAKE_BUILD_TYPE=Release` 会在 `-O1` 之后追加 `-O3 -DNDEBUG`，而 emcc 认**最后一个** `-O`（实测 `ninja -t commands` 里两个旗标同时在）；(2) 因此那条论证的依据（「wasm-opt 只省 36 KB」）的真实原因是**链接期 binaryen 已经按 -O3 跑过一遍**，不是在它输出上再跑一遍的结果。结论碰巧对、理由是错的 —— 这类必须记，否则下一个 agent 会拿错误理由去推别的结论。由隔壁在 OPT-RESULTS.md §0 抓出。",
+      "evidence": "ninja -C m1/build-clang -t commands tools/clang/lib/Basic/CMakeFiles/obj.clangBasic.dir/Version.cpp.o | grep -oE '\\-O[0-9s]+'",
+      "fixed_in": "m1/OPT-REVIEW.md §2；m1/OPT-RESULTS.md §0（隔壁的原始发现）"
     }
   ]
 }

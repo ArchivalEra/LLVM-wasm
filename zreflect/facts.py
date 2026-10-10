@@ -100,6 +100,25 @@ def m1_inputs_fingerprint():
     return h.hexdigest()[:16]
 
 
+M1_OPT_INPUTS = ("m1/exp-build.sh", "m1/exp-run.sh", "m1/patch-lld-wasm-only.sh")
+
+
+def m1_opt_inputs_cmd():
+    return "cat %s | sha256sum | cut -c1-16" % " ".join(M1_OPT_INPUTS)
+
+
+def m1_opt_inputs_fingerprint():
+    """产出优化实验数字的那套脚本的指纹 —— 贵事实的便宜见证。"""
+    import hashlib                                          # noqa: PLC0415
+    h = hashlib.sha256()
+    for rel in M1_OPT_INPUTS:
+        p = os.path.join(GATE_REPO, rel)
+        if os.path.exists(p):
+            with open(p, "rb") as fh:
+                h.update(fh.read())
+    return h.hexdigest()[:16]
+
+
 def oct_census_fingerprint():
     """普查证据文件（m0/evidence/oct-eh-perfile.txt）的指纹 —— 贵事实的便宜见证。
 
@@ -296,6 +315,22 @@ def measure_facts():
                 val, "grep -m1 '^ARTIFACT %s ' m1/evidence/m1-acceptance.log | cut -d' ' -f3" % key,
                 "m1/evidence", label, replay=False,
                 witness=m1_inputs_cmd(), witness_expect=m1_inputs_fingerprint())
+
+    # ── M1 体积优化实验（隔壁一轮的产物，贵 ⇒ 挂见证）──────────────────────
+    # 值来自 m1/evidence/opt-*.log 的 ARTIFACT 行。
+    for key, log, label in (
+            ("anchor_clang_wasm_brotli", "opt-anchor.log",
+             "MinSizeRel(-Os) 下 clang.wasm 的 brotli（vs 基线 [[m1_clang_wasm_brotli]]）"),
+            ("anchor_clang_wasm", "opt-anchor.log", "同上 raw"),
+            ("lld_wasmonly_brotli", "opt-lld-wasm-only.log",
+             "只留 wasm 驱动的 lld brotli（vs 基线 [[m1_lld_wasm_brotli]]）"),
+            ("lld_wasmonly_raw", "opt-lld-wasm-only.log", "同上 raw")):
+        val = _artifact_int(os.path.join(EV1, log), key)
+        if val is not None:
+            facts[key] = fact(
+                val, "grep -m1 '^ARTIFACT %s ' m1/evidence/%s | cut -d' ' -f3" % (key, log),
+                "m1/evidence", label, replay=False,
+                witness=m1_opt_inputs_cmd(), witness_expect=m1_opt_inputs_fingerprint())
 
     # ── 下游 .oct 的异常符号依赖面（全量普查，贵 ⇒ 挂见证）─────────────────
     # 值来自一次全量扫描（10,246 个 .oct，wasm-dis 读 IMPORT 段），记在
