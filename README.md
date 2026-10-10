@@ -13,6 +13,13 @@ submodule 钉住（pin = commit，字节 = sha256）。需求书是**唯一一�
 
 下一步是 **M2**（进程内薄驱动 + Worker 化 + sysroot 打包）。
 
+**体积优化实验（已完成一轮，结论已定）**：SPEC §6 的 15 MB 预算**到不了**。
+最有效的两根杠杆是 `MinSizeRel`（真 `-Os`）与「lld 只留 wasm 驱动」，
+两者合计把 brotli 从 26.06 MB 压到 21.80 MB（−16.4%），仍超预算 45%。
+配置→体积对照表、每条实验的复跑命令、以及"试过但没用"的清单都在
+[`m1/OPT-RESULTS.md`](m1/OPT-RESULTS.md)。**预算要不要改是委托人的决定**，
+本仓只给数字。
+
 ## 数字住在哪
 
 **本仓正文不手抄数字。** 所有「测出来的值」在 `FACTS.json`（事实台账）里生产，
@@ -37,6 +44,11 @@ sh m0/run-m0.sh               # wasm32：编 side → 手链 → 编宿主 → d
 ARCH=wasm64 sh m0/run-m0.sh   # 同一套，wasm64 档
 sh m0/run-counterexamples.sh  # §9.5 反例 + §9.6 模板缺口
 sh m0/run-mm2-keeplist.sh     # 宿主符号契约的三条路（bare / +tag / +keep-list）
+
+# 体积优化实验（见 m1/OPT-RESULTS.md；ccache 走 CMAKE_*_COMPILER_LAUNCHER）
+EXP_JOBS=20 bash m1/exp-run.sh anchor          # MinSizeRel（-Os）那根杠杆
+bash m1/patch-lld-wasm-only.sh                 # lld 只留 wasm 驱动
+cd m1/build-lld && ninja lld-wasm-only && cd ../..
 ```
 
 结果记录在 [`m1/RESULTS.md`](m1/RESULTS.md) 与 [`m0/RESULTS.md`](m0/RESULTS.md)；
