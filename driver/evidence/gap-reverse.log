@@ -1,0 +1,13 @@
+host: /mnt/hdd/octave-wasm-build/siteWebGL/w64/octave.wasm
+PASS compile succeeded
+   needs 35 symbols; missing 2
+     MISSING _ZNSt3__213basic_ostreamIcNS_11char_traitsIcEEElsEm
+     MISSING host_symbol_that_does_not_exist
+PASS host was actually checked
+PASS the invented missing symbol is named
+PASS the SPEC 5.2 gap is named too
+PASS the report is not empty (a checker answering "no gaps" would fail here)
+-- artifacts
+ARTIFACT gap_reverse_pass 5
+
+=== ALL PASS ===

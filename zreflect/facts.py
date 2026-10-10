@@ -119,6 +119,26 @@ def m1_opt_inputs_fingerprint():
     return h.hexdigest()[:16]
 
 
+DRIVER_INPUTS = ("driver/toolchain.mjs", "driver/acceptance-driver.mjs",
+                 "driver/check-gap-reverse.mjs")
+
+
+def driver_inputs_cmd():
+    return "cat %s | sha256sum | cut -c1-16" % " ".join(DRIVER_INPUTS)
+
+
+def driver_inputs_fingerprint():
+    """薄驱动源码的指纹 —— 驱动验收数字的便宜见证。"""
+    import hashlib                                          # noqa: PLC0415
+    h = hashlib.sha256()
+    for rel in DRIVER_INPUTS:
+        p = os.path.join(GATE_REPO, rel)
+        if os.path.exists(p):
+            with open(p, "rb") as fh:
+                h.update(fh.read())
+    return h.hexdigest()[:16]
+
+
 def oct_census_fingerprint():
     """普查证据文件（m0/evidence/oct-eh-perfile.txt）的指纹 —— 贵事实的便宜见证。
 
@@ -331,6 +351,22 @@ def measure_facts():
                 val, "grep -m1 '^ARTIFACT %s ' m1/evidence/%s | cut -d' ' -f3" % (key, log),
                 "m1/evidence", label, replay=False,
                 witness=m1_opt_inputs_cmd(), witness_expect=m1_opt_inputs_fingerprint())
+
+    # ── M2：薄驱动（SPEC §7.4/§7.5）的验收（贵 ⇒ 挂见证）────────────────────
+    EVD = repo("driver/evidence")
+    for key, log, label in (
+            ("driver_acceptance_pass", "driver-acceptance.log",
+             "薄驱动 compile() 验收 PASS 数（含带真宿主的缺口检查）"),
+            ("driver_module_bytes", "driver-acceptance.log",
+             "驱动经内存 FS 产出的 side module 字节数"),
+            ("gap_reverse_pass", "gap-reverse.log",
+             "缺口检查的反向断言（真缺口必须被点名）PASS 数")):
+        val = _artifact_int(os.path.join(EVD, log), key)
+        if val is not None:
+            facts[key] = fact(
+                val, "grep -m1 '^ARTIFACT %s ' driver/evidence/%s | cut -d' ' -f3" % (key, log),
+                "driver/evidence", label, replay=False,
+                witness=driver_inputs_cmd(), witness_expect=driver_inputs_fingerprint())
 
     # ── 下游 .oct 的异常符号依赖面（全量普查，贵 ⇒ 挂见证）─────────────────
     # 值来自一次全量扫描（10,246 个 .oct，wasm-dis 读 IMPORT 段），记在
