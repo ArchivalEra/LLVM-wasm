@@ -406,7 +406,13 @@ def measure_facts():
             ("gap_reverse_pass", "gap-reverse.log",
              "缺口检查的反向断言（真缺口必须被点名）PASS 数"),
             ("fail_closed_pass", "fail-closed.log",
-             "sha256 fail-closed 断言数（篡改/截断/字节数不符/缺 manifest 四类拒绝）")):
+             "sha256 fail-closed 断言数（篡改/截断/字节数不符/缺 manifest 四类拒绝）"),
+            ("wasm64_acceptance_pass", "wasm64-acceptance.log",
+             "wasm64 验收 PASS 数（含「必须是真 64 位」的反向断言）"),
+            ("wasm64_module_bytes", "wasm64-acceptance.log",
+             "wasm64 side module 字节数（对比 wasm32 [[m0_wasm32_side_bytes]] 量级）"),
+            ("wasm32_module_bytes", "wasm64-acceptance.log",
+             "同一夹具 wasm32 的字节数（两档对照）")):
         val = _artifact_int(os.path.join(EVD, log), key)
         if val is not None:
             facts[key] = fact(

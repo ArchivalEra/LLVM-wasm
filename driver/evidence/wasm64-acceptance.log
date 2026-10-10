@@ -1,0 +1,26 @@
+
+== wasm32 ==
+PASS wasm32: compile ok
+PASS wasm32: exports minifn: __wasm_call_ctors,_emscripten_tls_init,minifn
+PASS wasm32: has an imported memory
+   976 bytes, memory64=false
+
+== wasm64 ==
+PASS wasm64: compile ok
+PASS wasm64: exports minifn: __wasm_call_ctors,_emscripten_tls_init,minifn
+PASS wasm64: has an imported memory
+   994 bytes, memory64=true
+
+== the two targets must differ in pointer width ==
+PASS wasm32 module is 32-bit: is64=false
+PASS wasm64 module is genuinely 64-bit (not a silent downgrade)
+PASS the two modules differ
+
+== unknown target is refused ==
+PASS target wasm128 refused: target must be wasm32 or wasm64, got wasm128
+-- artifacts
+ARTIFACT wasm64_acceptance_pass 10
+ARTIFACT wasm64_module_bytes 994
+ARTIFACT wasm32_module_bytes 976
+
+=== ALL PASS ===

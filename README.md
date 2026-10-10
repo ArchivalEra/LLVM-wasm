@@ -21,8 +21,9 @@ submodule 钉住（pin = commit，字节 = sha256）。需求书是**唯一一�
 
 - **薄驱动**（SPEC §7.4/§7.5 的 `compile()` 接口 + §5.4 缺口检查）—— [`driver/RESULTS.md`](driver/RESULTS.md)
 - **sysroot 打包 + manifest + sha256 fail-closed**（§6/§2/§9.10）—— [`package/RESULTS.md`](package/RESULTS.md)
+- **wasm64**（§4.5/§9.7）—— 同一个 clang/lld 加 target 旗标即可，不需要第二套产物
 
-还剩 **Worker 化**（§7.3，需真实浏览器）、wasm64 的编译路径、分片懒加载（§6，等预算决定）。
+还剩 **Worker 化**（§7.3，需真实浏览器）、分片懒加载（§6，等预算决定）。
 
 **体积优化实验（已完成一轮，结论已定）**：SPEC §6 的 15 MB 预算**到不了**。
 最有效的两根杠杆是 `MinSizeRel`（真 `-Os`）与「lld 只留 wasm 驱动」，
@@ -54,6 +55,7 @@ node m1/acceptance-full.mjs
 node driver/acceptance-driver.mjs
 node driver/check-gap-reverse.mjs
 node driver/check-fail-closed.mjs             # §9.10 篡改必须被拒
+node driver/acceptance-wasm64.mjs             # §9.7 两档都过，且 wasm64 是真 64 位
 M1_BUNDLE=1 node driver/acceptance-driver.mjs  # 交付路径：只从 tar 编译
 
 # M2：打包 sysroot（实测构成 + manifest + sha256）

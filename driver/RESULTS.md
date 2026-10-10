@@ -81,6 +81,39 @@ MISSING host_symbol_that_does_not_exist                       ← 测试埋的�
 
 ⇒ 隔壁的体积线一有更好的产物，驱动**换路径即可用**，不需要改代码。
 
+## 4b. wasm64：一个工具链，不是两套（SPEC §4.5 / §9.7）
+
+SPEC §4.5 要求 wasm32 与 wasm64 **都**支持，§9.7 要求两档都过同一套验收。
+我原本以为需要**第二套 clang/lld 产物**（像 sysroot 那样分两个 tar）。**实测不是**：
+
+**编译器是多目标的**——它的 target 由 `--target` 决定，与它自己怎么编的无关。
+实测同一个 `clang.wasm`（wasm32 宿主里跑的）：
+
+```
+--target=wasm32-unknown-emscripten  → 395 B 对象，memory flags=0x00
+--target=wasm64-unknown-emscripten  → 405 B 对象，memory flags=0x04  ← memory64 位
+```
+
+`wasm-ld` 同理：同一个 `lld.wasm` 加 `-mwasm64` 就能链（实测 905 B 产物）。
+
+⇒ **两档只差 sysroot 里的 `pic/` 子树**（`crtbegin-mt.o` 按架构不同，md5 已验），
+`include/` 是共享的。所以"两档"的成本是一个工具链 + 两个小 tar，不是两套编译器。
+
+### 反向断言（这条是重点）
+
+**一个忽略 `target` 参数的驱动会给两档返回同样的 wasm32 字节**，而所有正向检查
+（导出齐、能链接、有缺口报告）**照样通过**。所以验收必须读**指针宽度**：
+
+`driver/acceptance-wasm64.mjs` 直接解析二进制的 import 段，读 memory 的 limits flags ——
+**memory64 proposal 用 bit `0x04`**。纯 JS 实现（浏览器里没有 `wasm-dis` 可调）。
+
+```
+wasm32 module: 976 B, memory64=false
+wasm64 module: 994 B, memory64=true     ← 不是静默降级的 32 位
+```
+
+验收 [[wasm64_acceptance_pass]] 项 PASS。复跑：`node driver/acceptance-wasm64.mjs`。
+
 ## 5. 还没做的（M2 的其余部分）
 
 SPEC §7 还要求三件，都不在本轮：

@@ -172,18 +172,19 @@ export class Toolchain {
   }
 
   /** Stage the sysroot into a module's FS, from whichever source was configured. */
-  _stageSysroot(fs) {
+  _stageSysroot(fs, arch = 'wasm32') {
     if (this.bundle) {
       const files = this._bundle();
       // The tar is rooted at "sysroot/...", so install straight into /sysroot.
+      // It carries include/ (arch-shared) plus lib/<arch>-emscripten/pic.
       const n = installBundle(fs, files, '');
       this._log(`[bundle] installed ${n} files into the memory FS`);
       return n;
     }
     const { stage } = this._fs();
     let n = stage(fs, join(this.sysroot, 'include'), '/sysroot/include');
-    n += stage(fs, join(this.sysroot, 'lib/wasm32-emscripten/pic'),
-               '/sysroot/lib/wasm32-emscripten/pic');
+    n += stage(fs, join(this.sysroot, `lib/${arch}-emscripten/pic`),
+               `/sysroot/lib/${arch}-emscripten/pic`);
     return n;
   }
 
@@ -208,11 +209,10 @@ export class Toolchain {
     return { stage, staged };
   }
 
-  _hasCrt() {
-    if (this.bundle) {
-      return this._bundle().has('sysroot/lib/wasm32-emscripten/pic/crtbegin-mt.o');
-    }
-    return existsSync(join(this.sysroot, 'lib/wasm32-emscripten/pic/crtbegin-mt.o'));
+  _hasCrt(arch = 'wasm32') {
+    const rel = `sysroot/lib/${arch}-emscripten/pic/crtbegin-mt.o`;
+    if (this.bundle) return this._bundle().has(rel);
+    return existsSync(join(this.sysroot, `lib/${arch}-emscripten/pic/crtbegin-mt.o`));
   }
 
   async clang() {
@@ -221,7 +221,9 @@ export class Toolchain {
     this._clang = await factory({
       print: () => {}, printErr: () => {}, noInitialRun: true,
     });
-    this._stageSysroot(this._clang.FS);
+    // clang only reads headers; the arch-specific bit is pic/, which it never
+    // touches. Stage headers once (from include/), which the bundle shares.
+    this._stageSysroot(this._clang.FS, 'wasm32');
     return this._clang;
   }
 
@@ -250,11 +252,15 @@ export class Toolchain {
       return { ok: false, error: `abi.exceptions must be one of ${EXCEPTION_MODES.join('|')}`, diagnostics };
     }
     const target = req.target || 'wasm32';
-    if (target === 'wasm64') {
-      // SPEC §4.5 requires both, but M1 built only the wasm32 sysroot. Refuse
-      // loudly rather than silently producing a wasm32 module.
-      return { ok: false, error: 'target wasm64 not built yet (M4); refusing rather than mislabelling', diagnostics };
+    if (target !== 'wasm32' && target !== 'wasm64') {
+      return { ok: false, error: `target must be wasm32 or wasm64, got ${target}`, diagnostics };
     }
+    // A compiler is multi-target: the SAME clang.wasm emits wasm64 objects when
+    // asked (measured: the object's memory is i64, not silently i32). Same for
+    // wasm-ld, which takes -mwasm64. So "two arches" costs one toolchain, not
+    // two -- what differs per arch is the sysroot's pic/ subtree.
+    const triple = `${target}-unknown-emscripten`;
+    const archLib = `/sysroot/lib/${target}-emscripten/pic`;
     const files = req.files || (req.source ? { 'input.cc': req.source } : null);
     if (!files || Object.keys(files).length === 0) {
       return { ok: false, error: 'compile() needs source or files', diagnostics };
@@ -270,7 +276,7 @@ export class Toolchain {
 
     // ---- §4.1 compile
     const cc1 = [
-      '--target=wasm32-unknown-emscripten',
+      `--target=${triple}`,
       '--sysroot=/sysroot',
       '-isystem', '/sysroot/include/compat',
       '-fvisibility=default', '-fPIC', '-O2',
@@ -292,23 +298,24 @@ export class Toolchain {
     }
 
     // ---- §4.2 link
+    this._arch = target;
     const lld = await this.lld();
-    this._stageSysroot(lld.FS);
+    this._stageSysroot(lld.FS, this._arch || 'wasm32');
     lld.FS.mkdirTree('/out');
     lld.FS.writeFile('/out/tu.o', obj);
 
-    const crt = '/sysroot/lib/wasm32-emscripten/pic/crtbegin-mt.o';
+    const crt = `${archLib}/crtbegin-mt.o`;
     const cmd = [
-      '-mwasm32', '-o', '/out/module.so', '--strip-debug',
+      `-m${target}`, '-o', '/out/module.so', '--strip-debug',
       '--export=__wasm_call_ctors',
       '--export=_emscripten_tls_init',
       '--export-dynamic',
       '--unresolved-symbols=import-dynamic',
       '-shared', '--no-stack-first',
       ...linkFlagsFor(abi),
-      ...(this._hasCrt() ? [crt] : []),
+      ...(this._hasCrt(target) ? [crt] : []),
       '/out/tu.o',
-      '-L/sysroot/lib/wasm32-emscripten/pic',
+      `-L${archLib}`,
     ];
     this._log(`[link] ${cmd.join(' ')}`);
     const rcL = lld.callMain(cmd);
