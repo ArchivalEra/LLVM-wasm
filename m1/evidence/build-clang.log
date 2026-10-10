@@ -1,0 +1,9 @@
+== M1: building clang -> /mnt/hdd/zcode-projects/LLVM-wasm/m1/build-clang ==
+   configure OK
+   build OK
+lrwxrwxrwx 1 archivalera archivalera       11 10月10日 20:39 bin/clang.js -> clang.js-24
+-rwxrwxr-x 1 archivalera archivalera 71055261 10月10日 20:39 bin/clang.wasm
+ARTIFACT clang_wasm 71055261
+ARTIFACT clang_wasm_gzip 23299801
+ARTIFACT clang_js 75866
+ARTIFACT clang_wasm_brotli 16400451

@@ -6,12 +6,25 @@
 
 **Blocked by:** M1（把 clang+lld 编成 wasm）。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-**Settling:** 三个数都从真实产物量出来，写成本仓台账的新键 ⇒ 可结案。判据两种结论：
-`python3 zreflect/facts.py --get clang_wasm_brotli_bytes` —— rc=0 ⇒ 已量得现代 LLVM 的真实体积，
-结案；rc=2（键不存在）⇒ M1 还没产出 clang.wasm，本单仍 blocked。
-若量出的 raw 体积落在 SPEC 推断的 35–60 MB 之外 ⇒ 结案但须同时更正 SPEC §6 的推断区间。
+**Settling:** ✅ **已结案**（M1 完成时）⇒ `python3 zreflect/facts.py --get m1_clang_wasm_brotli` —— rc=0 ⇒ 已量得现代 LLVM 的真实体积（本单结案）；rc=2 ⇒ 键不存在，M1 产物或台账丢了，回到 blocked。
+
+**实测结论（LLVM 24 / emsdk 6.0.12，`-O1`、只开 WebAssembly 后端）**：
+
+| 资产 | raw | gzip -9 | brotli -q11 |
+|---|---|---|---|
+| `clang.wasm` | [[m1_clang_wasm]] | [[m1_clang_wasm_gzip]] | [[m1_clang_wasm_brotli]] |
+| `lld.wasm`（wasm-ld） | [[m1_lld_wasm]] | [[m1_lld_wasm_gzip]] | [[m1_lld_wasm_brotli]] |
+
+**两条与 SPEC §6 的出入**：
+
+1. **raw 推断偏低**：SPEC 猜「现代 LLVM raw 35–60 MB（合计量级）」；
+   实测**单 `clang.wasm` 就 71 MB**，两个加起来 110 MB。推断区间要改。
+2. **brotli 明显超预算**：SPEC §6 的预算是「brotli 后 ≤ 15 MB（首拉）」。
+   实测两个 wasm 的 brotli **合计 26.1 MB** —— 超预算约 74%。
+   ⇒ §6 的减重方向（`-Os`/MinSizeRel、`wasm-opt -Oz`、只带 `-cc1` 不带完整 driver）
+   **从"进一步优化"升级为"必须做"**，否则 §6 的预算目标不成立。
 
 ## 为什么留着不删
 

@@ -47,6 +47,7 @@ EMCC = os.path.join(EMSDK, "upstream/emscripten/emcc")
 CLANG = os.path.join(EMSDK, "upstream/bin/clang")
 WASM_LD = os.path.join(EMSDK, "upstream/bin/wasm-ld")
 EV = repo("m0/evidence")
+EV1 = repo("m1/evidence")   # M1 的证据日志（同一套 ARTIFACT 约定）
 
 
 def _run(cmd, cwd=None):
@@ -78,6 +79,39 @@ def build_inputs_fingerprint():
             with open(p, "rb") as fh:
                 h.update(fh.read())
     return h.hexdigest()[:16]
+
+
+M1_INPUTS = ("m1/build-clang-wasm.sh", "m1/acceptance.mjs")
+
+
+def m1_inputs_cmd():
+    return "cat %s | sha256sum | cut -c1-16" % " ".join(M1_INPUTS)
+
+
+def m1_inputs_fingerprint():
+    """产出 m1 产物/结论的那套输入的指纹 —— 贵事实的便宜见证。"""
+    import hashlib                                          # noqa: PLC0415
+    h = hashlib.sha256()
+    for rel in M1_INPUTS:
+        p = os.path.join(GATE_REPO, rel)
+        if os.path.exists(p):
+            with open(p, "rb") as fh:
+                h.update(fh.read())
+    return h.hexdigest()[:16]
+
+
+def oct_census_fingerprint():
+    """普查证据文件（m0/evidence/oct-eh-perfile.txt）的指纹 —— 贵事实的便宜见证。
+
+    输入（那批 .oct 的逐文件扫描结果）不变 ⇒ 普查结论仍成立；
+    文件一改，见证立刻红。
+    """
+    import hashlib                                          # noqa: PLC0415
+    p = os.path.join(GATE_REPO, "m0/evidence/oct-eh-perfile.txt")
+    if not os.path.exists(p):
+        return "no-census"
+    with open(p, "rb") as fh:
+        return hashlib.sha256(fh.read()).hexdigest()[:16]
 
 
 def _artifact(path, name):
@@ -228,6 +262,55 @@ def measure_facts():
                 "§5.5 MM=2 主路的三步证据（bare / +tag / +keep-list）",
                 replay=False,
                 witness=BUILD_INPUTS_CMD, witness_expect=build_inputs_fingerprint())
+
+    # ── M1：把 clang/lld 编成 wasm 的体积（贵 ⇒ 挂见证）────────────────────
+    # 值的产地 = m1/build-clang-wasm.sh 的 ARTIFACT 行（见 m1/evidence/build-*.log）。
+    # 这是 SPEC §6 那条「LLVM 8 旧数、现代 LLVM 是推断」悬案的答案。
+    for key, log, label in (
+            ("clang_wasm", "build-clang.log", "clang.wasm raw 字节（SPEC §6 悬案）"),
+            ("clang_wasm_gzip", "build-clang.log", "clang.wasm gzip -9 字节"),
+            ("clang_wasm_brotli", "build-clang.log", "clang.wasm brotli -q11 字节（SPEC §6 预算比这个）"),
+            ("clang_js", "build-clang.log", "clang.js 胶水字节"),
+            ("lld_wasm", "build-lld.log", "lld（wasm-ld）raw 字节"),
+            ("lld_wasm_gzip", "build-lld.log", "lld gzip -9 字节"),
+            ("lld_wasm_brotli", "build-lld.log", "lld brotli -q11 字节")):
+        val = _artifact_int(os.path.join(EV1, log), key)
+        if val is not None:
+            facts["m1_" + key] = fact(
+                val, "grep -m1 '^ARTIFACT %s ' m1/evidence/%s | cut -d' ' -f3" % (key, log),
+                "m1/evidence", label, replay=False,
+                witness=m1_inputs_cmd(), witness_expect=m1_inputs_fingerprint())
+
+    # 验收结果：值从验收日志的 ARTIFACT 行读（与 M0 runner 同一约定）。
+    # ⚠️ 不从 m1/acceptance/minifn.so 直接 stat：那是产物、不入库，
+    #    换个机器量不到 ⇒ 键会掉、守卫报「掉条」（实测踩到这类形状）。
+    #    日志入库 ⇒ 任何机器都能复算。
+    acc = os.path.join(EV1, "m1-acceptance.log")
+    for key, label in (("m1_acceptance_pass",
+                        "在 wasm 里完成 编译+链接，产出 ABI 正确的 side module（PASS 数）"),
+                       ("m1_sidemodule_bytes",
+                        "wasm 内 clang+lld 产出的 side module 字节数")):
+        val = _artifact_int(acc, key)
+        if val is not None:
+            facts[key] = fact(
+                val, "grep -m1 '^ARTIFACT %s ' m1/evidence/m1-acceptance.log | cut -d' ' -f3" % key,
+                "m1/evidence", label, replay=False,
+                witness=m1_inputs_cmd(), witness_expect=m1_inputs_fingerprint())
+
+    # ── 下游 .oct 的异常符号依赖面（全量普查，贵 ⇒ 挂见证）─────────────────
+    # 值来自一次全量扫描（10,246 个 .oct，wasm-dis 读 IMPORT 段），记在
+    # m0/evidence/oct-eh-census.txt。见证 = 那批 .oct 的清单指纹（文件集合没变）。
+    census = os.path.join(EV, "oct-eh-census.txt")
+    for key, label in (("oct_total", "下游 .oct 全量数"),
+                       ("oct_tag_importers", "导入 __cpp_exception 的文件数"),
+                       ("oct_throw_importers", "导入 __cxa_throw 的文件数")):
+        val = _artifact_int(census, key)
+        if val is not None:
+            facts[key] = fact(
+                val, "grep -m1 '^ARTIFACT %s ' m0/evidence/oct-eh-census.txt | cut -d' ' -f3"
+                % key, "m0/evidence", label, replay=False,
+                witness="sha256sum m0/evidence/oct-eh-perfile.txt | cut -c1-16",
+                witness_expect=oct_census_fingerprint())
 
     # ── 工具链版本（要 toolchain/ 在；不在就量不到）──────────────────────────
     # cmd 里不拼 sed 转义：直接打整行再在闸门侧用 grep 取值不可判，

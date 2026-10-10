@@ -1,0 +1,9 @@
+== M1: building lld -> /mnt/hdd/zcode-projects/LLVM-wasm/m1/build-lld ==
+   configure OK
+   build OK
+-rw-rw-r-- 1 archivalera archivalera    73146 10月10日 20:55 bin/lld.js
+-rwxrwxr-x 1 archivalera archivalera 38912004 10月10日 20:55 bin/lld.wasm
+ARTIFACT lld_js 73146
+ARTIFACT lld_wasm 38912004
+ARTIFACT lld_wasm_gzip 13601263
+ARTIFACT lld_wasm_brotli 9660186

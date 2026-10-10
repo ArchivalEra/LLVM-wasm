@@ -1,0 +1,26 @@
+== [1] clang.wasm: compile ==
+   staged 1609 sysroot files
+PASS clang exits 0: rc=0
+PASS hello.o produced: 470 bytes
+
+== [2] lld.wasm (wasm-ld): link ==
+   staged 1609 sysroot files
+   argv: -mwasm32 -o /src/minifn.so --strip-debug --export=__wasm_call_ctors --export=_emscripten_tls_init --export-dynamic --unresolved-symbols=import-dynamic -shared --shared-memory --no-stack-first /sysroot/lib/wasm32-emscripten/pic/crtbegin-mt.o /src/hello.o -L/sysroot/lib/wasm32-emscripten/pic -mllvm -exception-model=wasm
+PASS wasm-ld exits 0: rc=0
+PASS minifn.so produced: 976 bytes
+
+== [3] side-module ABI check ==
+PASS exports minifn: __wasm_call_ctors,_emscripten_tls_init,minifn
+PASS exports __wasm_call_ctors
+PASS exports _emscripten_tls_init
+PASS imports env.memory (side module shape)
+PASS imports __memory_base / __table_base (relocatable)
+   GOT imports: 0 (0 is legitimate for a fixture with no cross-module symbol addresses)
+PASS binary carries the dylink section name
+   exports: __wasm_call_ctors, _emscripten_tls_init, minifn
+   env imports: 6
+-- artifacts
+ARTIFACT m1_acceptance_pass 10
+ARTIFACT m1_sidemodule_bytes 976
+
+=== ALL PASS ===

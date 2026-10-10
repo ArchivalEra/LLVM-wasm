@@ -1,9 +1,25 @@
 # STATE · 活状态
 
 正文只写「现在是什么」，**数字一律引用台账键**（或看文末机器块）。
-硬规矩见 `AGENTS.md`（vendored）；本次 M0 的完整记录见 `m0/RESULTS.md`。
+M0 的完整记录见 `m0/RESULTS.md`；M1 见 `m1/RESULTS.md`。
 
 ## 现在是什么
+
+- **M1 已完成、全绿**：`clang` 与 `lld`（wasm-ld）**各自编成 wasm 并在 wasm 里跑通了完整链路** ——
+  经由内存文件系统（SPEC §7.2）编译 `hello.cc` → 链接 → 产出 **Side module ABI 正确**的
+  `minifn.so`（[[m1_sidemodule_bytes]] B，导出 `minifn` / `__wasm_call_ctors` /
+  `_emscripten_tls_init`，带 dylink 段）。验收 [[m1_acceptance_pass]] 项 PASS、0 FAIL。
+  复跑：`node m1/acceptance-full.mjs`（需先 `bash m1/build-clang-wasm.sh both`）。
+
+- **M1 体积实测（SPEC §6 那条悬案的答案，本单已结案）**：
+
+  | 资产 | raw | gzip -9 | brotli -q11 |
+  |---|---|---|---|
+  | `clang.wasm` | [[m1_clang_wasm]] | [[m1_clang_wasm_gzip]] | [[m1_clang_wasm_brotli]] |
+  | `lld.wasm` | [[m1_lld_wasm]] | [[m1_lld_wasm_gzip]] | [[m1_lld_wasm_brotli]] |
+
+  ⇒ SPEC §6 的两处推断都要改：**raw 推低了**（它猜合计 35–60 MB，实测单 clang 就 71 MB）；
+  **brotli 超预算**（它定 ≤ 15 MB，实测两个 wasm 合计 26.1 MB）。减重从"可选优化"变成"必须做"。
 
 - **M0 已完成、全绿**：用裸 `clang` + `wasm-ld` 手工编出的 side module（全程不经 emcc）
   被 emscripten 主模块 `dlopen` 并调用成功；wasm32 档 [[m0_pass_wasm32]] 项 PASS、
@@ -28,6 +44,11 @@
   - 对照：`MAIN_MODULE=1` 导出 [[m0_wasm32_host_exports]] 个，宿主
     [[m0_wasm32_host_bytes]] B —— 是 keep-list 版的 8.7 倍体积。
   复跑：`sh m0/run-mm2-keeplist.sh`。
+
+- **下游 `.oct` 的异常依赖面（全量普查）**：[[oct_total]] 个文件里
+  [[oct_tag_importers]] 个导入 `__cpp_exception`、[[oct_throw_importers]] 个导入 `__cxa_throw`
+  ⇒ 支持 SPEC §5.5「tag 显式必带」。
+  复跑：`python3 zreflect/facts.py --get oct_tag_importers`（值来自 `m0/evidence/oct-eh-census.txt`）。
 
 - **反例按预期表现**：[[m0_counterexample_ok]] 条（§9.5 去掉 `-fwasm-exceptions` ⇒
   **装得上、跑到第一次 throw 才炸**；§9.6 模板缺口被点名而非静默 stub）。
@@ -60,35 +81,47 @@
 
 | 键 | 值 | 测于 | 复跑命令 |
 |---|---|---|---|
-| `clang_major` | **24** | 2026-10-10T19:19:02+0800 | `toolchain/emsdk/upstream/bin/clang --version 2>/dev/null | head -1 | grep -oE 'clang version [0-9]+' | head -1 | grep -oE '[0-9]+$'` |
-| `emcc_from_repo_toolchain` | **yes** | 2026-10-10T19:19:02+0800 | `test -x toolchain/emsdk/upstream/emscripten/emcc && echo yes` |
-| `emcc_version` | **6.0.12** | 2026-10-10T19:19:02+0800 | `toolchain/emsdk/upstream/emscripten/emcc --version 2>/dev/null | head -1 | grep -oE '[0-9]+[.][0-9]+[.][0-9]+' | head -1` |
-| `gates_total` | **14** | 2026-10-10T19:19:02+0800 | `python3 zreflect/registry.py --all-runnable 2>/dev/null | wc -l` |
-| `lld_major` | **24** | 2026-10-10T19:19:02+0800 | `toolchain/emsdk/upstream/bin/wasm-ld --version 2>/dev/null | head -1 | grep -oE 'LLD [0-9]+' | head -1 | grep -oE '[0-9]+$'` |
-| `m0_counterexample_ok` | **2** | 2026-10-10T19:19:02+0800 | `grep -c '^OK' m0/evidence/counterexamples.log` |
-| `m0_keep_list_symbols` | **50** | 2026-10-10T19:19:02+0800 | `grep -m1 '^ARTIFACT keep_list_symbols ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3` |
-| `m0_mm2_bare_exports` | **30** | 2026-10-10T19:19:02+0800 | `grep -m1 '^ARTIFACT mm2_bare_exports ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3` |
-| `m0_mm2_bare_tags` | **0** | 2026-10-10T19:19:02+0800 | `grep -m1 '^ARTIFACT mm2_bare_tags ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3` |
-| `m0_mm2_keeplist_bytes` | **163130** | 2026-10-10T19:19:02+0800 | `grep -m1 '^ARTIFACT mm2_keeplist_bytes ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3` |
-| `m0_mm2_keeplist_exports` | **76** | 2026-10-10T19:19:02+0800 | `grep -m1 '^ARTIFACT mm2_keeplist_exports ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3` |
-| `m0_mm2_tagonly_exports` | **32** | 2026-10-10T19:19:02+0800 | `grep -m1 '^ARTIFACT mm2_tagonly_exports ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3` |
-| `m0_pass_wasm32` | **12** | 2026-10-10T19:19:02+0800 | `grep -c '^PASS' m0/evidence/m0-wasm32.log` |
-| `m0_pass_wasm64` | **12** | 2026-10-10T19:19:02+0800 | `grep -c '^PASS' m0/evidence/m0-wasm64.log` |
-| `m0_runner_scripts` | **3** | 2026-10-10T19:19:02+0800 | `find m0 -maxdepth 1 -name 'run-*.sh' | wc -l` |
-| `m0_wasm32_host_bytes` | **1413116** | 2026-10-10T19:19:02+0800 | `grep -m1 '^ARTIFACT wasm32_host_bytes ' m0/evidence/m0-wasm32.log | cut -d' ' -f3` |
-| `m0_wasm32_host_exports` | **5790** | 2026-10-10T19:19:02+0800 | `grep -m1 '^ARTIFACT wasm32_host_exports ' m0/evidence/m0-wasm32.log | cut -d' ' -f3` |
-| `m0_wasm32_side_bytes` | **19653** | 2026-10-10T19:19:02+0800 | `grep -m1 '^ARTIFACT wasm32_side_bytes ' m0/evidence/m0-wasm32.log | cut -d' ' -f3` |
-| `m0_wasm32_side_exports` | **9** | 2026-10-10T19:19:02+0800 | `grep -m1 '^ARTIFACT wasm32_side_exports ' m0/evidence/m0-wasm32.log | cut -d' ' -f3` |
-| `m0_wasm64_host_bytes` | **1448809** | 2026-10-10T19:19:02+0800 | `grep -m1 '^ARTIFACT wasm64_host_bytes ' m0/evidence/m0-wasm64.log | cut -d' ' -f3` |
-| `m0_wasm64_host_exports` | **5796** | 2026-10-10T19:19:02+0800 | `grep -m1 '^ARTIFACT wasm64_host_exports ' m0/evidence/m0-wasm64.log | cut -d' ' -f3` |
-| `m0_wasm64_side_bytes` | **20041** | 2026-10-10T19:19:02+0800 | `grep -m1 '^ARTIFACT wasm64_side_bytes ' m0/evidence/m0-wasm64.log | cut -d' ' -f3` |
-| `m0_wasm64_side_exports` | **9** | 2026-10-10T19:19:02+0800 | `grep -m1 '^ARTIFACT wasm64_side_exports ' m0/evidence/m0-wasm64.log | cut -d' ' -f3` |
-| `md_files` | **7** | 2026-10-10T19:19:02+0800 | `find . -name '*.md' -not -path './.git/*' -not -path './toolchain/*' | wc -l` |
-| `md_lines` | **643** | 2026-10-10T19:19:02+0800 | `find . -name '*.md' -not -path './.git/*' -not -path './toolchain/*' -exec awk 'FNR==1{b=0} /<!-- AUTO:FACTS -->/{b=1} !b' {} + | wc -l` |
-| `py_files` | **25** | 2026-10-10T19:19:02+0800 | `find . -name '*.py' -not -path './.git/*' -not -path './toolchain/*' | wc -l` |
-| `py_lines` | **5485** | 2026-10-10T19:19:02+0800 | `find . -name '*.py' -not -path './.git/*' -not -path './toolchain/*' -exec cat {} + | wc -l` |
+| `clang_major` | **24** | 2026-10-10T21:12:00+0800 | `toolchain/emsdk/upstream/bin/clang --version 2>/dev/null | head -1 | grep -oE 'clang version [0-9]+' | head -1 | grep -oE '[0-9]+$'` |
+| `emcc_from_repo_toolchain` | **yes** | 2026-10-10T21:12:00+0800 | `test -x toolchain/emsdk/upstream/emscripten/emcc && echo yes` |
+| `emcc_version` | **6.0.12** | 2026-10-10T21:12:00+0800 | `toolchain/emsdk/upstream/emscripten/emcc --version 2>/dev/null | head -1 | grep -oE '[0-9]+[.][0-9]+[.][0-9]+' | head -1` |
+| `gates_total` | **14** | 2026-10-10T21:12:00+0800 | `python3 zreflect/registry.py --all-runnable 2>/dev/null | wc -l` |
+| `lld_major` | **24** | 2026-10-10T21:12:00+0800 | `toolchain/emsdk/upstream/bin/wasm-ld --version 2>/dev/null | head -1 | grep -oE 'LLD [0-9]+' | head -1 | grep -oE '[0-9]+$'` |
+| `m0_counterexample_ok` | **2** | 2026-10-10T21:12:00+0800 | `grep -c '^OK' m0/evidence/counterexamples.log` |
+| `m0_keep_list_symbols` | **50** | 2026-10-10T21:12:00+0800 | `grep -m1 '^ARTIFACT keep_list_symbols ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3` |
+| `m0_mm2_bare_exports` | **30** | 2026-10-10T21:12:00+0800 | `grep -m1 '^ARTIFACT mm2_bare_exports ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3` |
+| `m0_mm2_bare_tags` | **0** | 2026-10-10T21:12:00+0800 | `grep -m1 '^ARTIFACT mm2_bare_tags ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3` |
+| `m0_mm2_keeplist_bytes` | **163130** | 2026-10-10T21:12:00+0800 | `grep -m1 '^ARTIFACT mm2_keeplist_bytes ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3` |
+| `m0_mm2_keeplist_exports` | **76** | 2026-10-10T21:12:00+0800 | `grep -m1 '^ARTIFACT mm2_keeplist_exports ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3` |
+| `m0_mm2_tagonly_exports` | **32** | 2026-10-10T21:12:00+0800 | `grep -m1 '^ARTIFACT mm2_tagonly_exports ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3` |
+| `m0_pass_wasm32` | **12** | 2026-10-10T21:12:00+0800 | `grep -c '^PASS' m0/evidence/m0-wasm32.log` |
+| `m0_pass_wasm64` | **12** | 2026-10-10T21:12:00+0800 | `grep -c '^PASS' m0/evidence/m0-wasm64.log` |
+| `m0_runner_scripts` | **3** | 2026-10-10T21:12:00+0800 | `find m0 -maxdepth 1 -name 'run-*.sh' | wc -l` |
+| `m0_wasm32_host_bytes` | **1413116** | 2026-10-10T21:12:00+0800 | `grep -m1 '^ARTIFACT wasm32_host_bytes ' m0/evidence/m0-wasm32.log | cut -d' ' -f3` |
+| `m0_wasm32_host_exports` | **5790** | 2026-10-10T21:12:00+0800 | `grep -m1 '^ARTIFACT wasm32_host_exports ' m0/evidence/m0-wasm32.log | cut -d' ' -f3` |
+| `m0_wasm32_side_bytes` | **19653** | 2026-10-10T21:12:00+0800 | `grep -m1 '^ARTIFACT wasm32_side_bytes ' m0/evidence/m0-wasm32.log | cut -d' ' -f3` |
+| `m0_wasm32_side_exports` | **9** | 2026-10-10T21:12:00+0800 | `grep -m1 '^ARTIFACT wasm32_side_exports ' m0/evidence/m0-wasm32.log | cut -d' ' -f3` |
+| `m0_wasm64_host_bytes` | **1448809** | 2026-10-10T21:12:00+0800 | `grep -m1 '^ARTIFACT wasm64_host_bytes ' m0/evidence/m0-wasm64.log | cut -d' ' -f3` |
+| `m0_wasm64_host_exports` | **5796** | 2026-10-10T21:12:00+0800 | `grep -m1 '^ARTIFACT wasm64_host_exports ' m0/evidence/m0-wasm64.log | cut -d' ' -f3` |
+| `m0_wasm64_side_bytes` | **20041** | 2026-10-10T21:12:00+0800 | `grep -m1 '^ARTIFACT wasm64_side_bytes ' m0/evidence/m0-wasm64.log | cut -d' ' -f3` |
+| `m0_wasm64_side_exports` | **9** | 2026-10-10T21:12:00+0800 | `grep -m1 '^ARTIFACT wasm64_side_exports ' m0/evidence/m0-wasm64.log | cut -d' ' -f3` |
+| `m1_acceptance_pass` | **10** | 2026-10-10T21:12:00+0800 | `grep -m1 '^ARTIFACT m1_acceptance_pass ' m1/evidence/m1-acceptance.log | cut -d' ' -f3` |
+| `m1_clang_js` | **75866** | 2026-10-10T21:12:00+0800 | `grep -m1 '^ARTIFACT clang_js ' m1/evidence/build-clang.log | cut -d' ' -f3` |
+| `m1_clang_wasm` | **71055261** | 2026-10-10T21:12:00+0800 | `grep -m1 '^ARTIFACT clang_wasm ' m1/evidence/build-clang.log | cut -d' ' -f3` |
+| `m1_clang_wasm_brotli` | **16400451** | 2026-10-10T21:12:00+0800 | `grep -m1 '^ARTIFACT clang_wasm_brotli ' m1/evidence/build-clang.log | cut -d' ' -f3` |
+| `m1_clang_wasm_gzip` | **23299801** | 2026-10-10T21:12:00+0800 | `grep -m1 '^ARTIFACT clang_wasm_gzip ' m1/evidence/build-clang.log | cut -d' ' -f3` |
+| `m1_lld_wasm` | **38912004** | 2026-10-10T21:12:00+0800 | `grep -m1 '^ARTIFACT lld_wasm ' m1/evidence/build-lld.log | cut -d' ' -f3` |
+| `m1_lld_wasm_brotli` | **9660186** | 2026-10-10T21:12:00+0800 | `grep -m1 '^ARTIFACT lld_wasm_brotli ' m1/evidence/build-lld.log | cut -d' ' -f3` |
+| `m1_lld_wasm_gzip` | **13601263** | 2026-10-10T21:12:00+0800 | `grep -m1 '^ARTIFACT lld_wasm_gzip ' m1/evidence/build-lld.log | cut -d' ' -f3` |
+| `m1_sidemodule_bytes` | **976** | 2026-10-10T21:12:00+0800 | `grep -m1 '^ARTIFACT m1_sidemodule_bytes ' m1/evidence/m1-acceptance.log | cut -d' ' -f3` |
+| `md_files` | **9** | 2026-10-10T21:11:59+0800 | `find . -name '*.md' -not -path './.git/*' -not -path './toolchain/*' | wc -l` |
+| `md_lines` | **968** | 2026-10-10T21:12:00+0800 | `find . -name '*.md' -not -path './.git/*' -not -path './toolchain/*' -exec awk 'FNR==1{b=0} /<!-- AUTO:FACTS -->/{b=1} !b' {} + | wc -l` |
+| `oct_tag_importers` | **3592** | 2026-10-10T21:12:00+0800 | `grep -m1 '^ARTIFACT oct_tag_importers ' m0/evidence/oct-eh-census.txt | cut -d' ' -f3` |
+| `oct_throw_importers` | **7402** | 2026-10-10T21:12:00+0800 | `grep -m1 '^ARTIFACT oct_throw_importers ' m0/evidence/oct-eh-census.txt | cut -d' ' -f3` |
+| `oct_total` | **10246** | 2026-10-10T21:12:00+0800 | `grep -m1 '^ARTIFACT oct_total ' m0/evidence/oct-eh-census.txt | cut -d' ' -f3` |
+| `py_files` | **25** | 2026-10-10T21:11:59+0800 | `find . -name '*.py' -not -path './.git/*' -not -path './toolchain/*' | wc -l` |
+| `py_lines` | **5568** | 2026-10-10T21:11:59+0800 | `find . -name '*.py' -not -path './.git/*' -not -path './toolchain/*' -exec cat {} + | wc -l` |
 
-27 条事实。
+39 条事实。
 <!-- /AUTO:FACTS -->
 
 <!-- AUTO:GATES -->
