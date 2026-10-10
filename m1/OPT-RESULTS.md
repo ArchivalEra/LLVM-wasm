@@ -101,10 +101,6 @@ M1_CLANG_BIN=m1/build-exp-anchor/bin M1_LLD_BIN=m1/build-lld/bin \
 
 ---
 
-## 4. 验收：改了配置还能不能编
-
----
-
 ## 3. 试过但**没用**的路（省下你重试的时间）
 
 | # | 做法 | 结果 | 为什么 |
@@ -112,7 +108,7 @@ M1_CLANG_BIN=m1/build-exp-anchor/bin M1_LLD_BIN=m1/build-lld/bin \
 | 1 | `wasm-opt -Oz`（交接单已做） | raw −1.13 MB，brotli **−36 KB（0.2%）** | binaryen 已经跑过（见 §0）；再跑一遍只是把已消化的冗余再扫一次 |
 | 2 | `wasm-opt -Oz --converge`（跑到不动点，26 分钟） | raw **69,913,426**（−1.14 MB，−1.6%） | 同上；brotli 层面收益只会更小 |
 | 3 | 链接期 `-Oz`（不动对象，只换链接旗标） | clang raw −0.8 MB 但 brotli **+6 KB**；lld raw −1.0 MB / brotli **−24 KB（−0.25%）** | emcc 链接默认已按 `-O3` 跑 binaryen，`-Oz` 只是把同一批 pass 换个挡 |
-| 4 | 砍 `-O1`：以为基线是 `-O1`、换 `-Os` 能省一大截 | 基线实际是 `-O3`，见 §0 | `CMAKE_BUILD_TYPE=Release` 追加的 `-O3` 覆盖了 `-O1` |
+| 4 | 把 `-DCMAKE_C_FLAGS="-O1"` 改成 `-Os`（照交接单字面做） | **实测无效**：`Release` 在后面追加 `-O3 -DNDEBUG`，emcc 认最后一个 `-O` ⇒ 只改 `-O1` 那一处等于没改 | 必须改 `CMAKE_BUILD_TYPE` 才真正换挡；这正是 §0 的发现，也是**本单唯一的大杠杆**（−18.9%） |
 | 5 | `-fno-exceptions -fno-rtti`（配置名 `lean`） | **链接失败** | `libLLVMSupport/CrashRecoveryContext.cpp.o` 引用 `emscripten_longjmp`，`-fno-exceptions` 下没有定义。详见 §5 |
 | 6 | 只关 RTTI（`LLVM_ENABLE_RTTI=OFF`，配置名 `lean2`） | **cmake 直接拒绝** | `HandleLLVMOptions.cmake:1244`：`LLVM_ENABLE_EH=ON` 时 RTTI 必须 ON |
 | 7 | `EM_COMPILER_WRAPPER=ccache`（交接单暗示的接法） | **完全无效**，命中数恒 0 | emsdk 6.0.12 的 `emcc.py:527` 读的是 `config.COMPILER_WRAPPER`，而**没有任何代码从环境变量给它赋值**。见 §6 |
