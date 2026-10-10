@@ -118,11 +118,25 @@ SPEC 与下游都写 `MAIN_MODULE=2`（DCE 版 + keep-list）。实测：
 
 根因：`__cpp_exception` 这个 **wasm tag** 定义在 libunwind
 （`system/lib/libunwind/src/Unwind-wasm.c` 的 `.tagtype __cpp_exception i32`），
-而 `MAIN_MODULE=2` 的 DCE + 导出白名单不会把它带上；下游的 keep-list
-（`gen-keep-list.sh`）从 `.oct` 的 IMPORT 段生成，也**收不到 tag 这类非函数项**。
+而 `MAIN_MODULE=2` 的 DCE + 导出白名单默认不会把它带上。
 
 ⇒ **`MAIN_MODULE=2` 路线必须把 tag 显式补进导出**，否则异常模型根本跨不过边界。
-这一步下游**今天没做**（SPEC §5.3 只记到「缺口仅 2 个符号」，没意识到 tag 是硬阻塞）。
+
+**⚠️ 本条的两处初判已被后续实测推翻**（2026-10-10 更正，保留原文以便追溯）：
+
+| 初判（错） | 实测（对） |
+|---|---|
+| 「keep-list 从 IMPORT 段生成，**收不到 tag 这类非函数项**」 | ❌ 错。`wasm-dis` 把 tag 导入打成 `(import "env" "__cpp_exception" (tag …))`，`gen-keep-list.sh` 的正则 `^ \(import "(env\|GOT\..*)" "…"` **能匹配到**（实测：对 M0 side 跑同一套管道，`__cpp_exception` 在输出里） |
+| 「这一步下游**今天没做**」 | ❌ 错。下游产物自带的 `octave.build.json` 写着 `main_module: 2`、`measured.exported_functions: 752`，而那 752 个导出里**含 `__cpp_exception`** ⇒ 下游**已经做到了** |
+
+**修正后的结论**：tag 缺口是真的（纯 MM=2、无 keep-list 时 dlopen 直接 `LinkError`），
+但**修法是现成的**——把 tag 名纳入 keep-list 即可。实测验证：MM=2 + 从 side 导入
+生成的 50 行 keep-list ⇒ 宿主导出 76 个（含 tag），dlopen **全绿**
+（`m0/tagtest/`，`host3.js`）。
+
+⇒ 对工具链的意义不变（§5.4 检查器**必须把 tag 单列一类**，因为它不是函数、
+不在下游现有的函数型扫描里显式覆盖），但对下游现状的判断要更正：
+**不是"没做"，而是"靠扫描隐式做到了，缺一个显式必带项"。**
 
 ### F-4 符号缺口检查器必须扣掉 side **自己导出**的符号
 
@@ -180,6 +194,12 @@ no-EH side: tag imports = 0     (EH side: 1)
    "逐字复现的命令行"必须**按版本参数化**，不能硬编码（呼应 SPEC §4.5 的旗标参数化要求，
    现在连 mllvm 选项也要参数化）。
 4. **验收必须跑到运行期**：F-5 证明链接期全绿不代表异常模型对。
+5. **tag 要进 keep-list**：F-3 更正后，下游 `gen-keep-list.sh` 的管道**能**扫到 tag，
+   但那是"靠扫描隐式拿到"。工具链应把 tag 做成**显式必带项**（不依赖某个 `.oct`
+   恰好被扫到），并把 `missing tags` 单列进 §5.4 的报错。
+6. **MM=2 主路可行**：`run-mm2-keeplist.sh` 三步证据证明
+   「MM=2 + 从 side 导入生成的 keep-list」可以 dlopen 全绿 ⇒ **不必为了异常
+   退回 MM=1**（MM=1 的宿主体积代价：1.41 MB vs keep-list 版 163 KB，见 §9）。
 
 ---
 
@@ -189,8 +209,24 @@ no-EH side: tag imports = 0     (EH side: 1)
 |---|---|
 | `run-m0.sh` | 主 runner（wasm32/wasm64），编→链→宿主→dlopen→缺口 |
 | `run-counterexamples.sh` | §9.5 反例 + §9.6 模板缺口 |
+| `run-mm2-keeplist.sh` | F-3 证据：MM=2 bare / +tag / +keep-list 三步对比 |
 | `side.cc` | side 夹具（minifn/miniprobe/minithrow/ministl） |
 | `host.cc` | 宿主夹具（host_det2/host_error + 断言） |
 | `landmine.cc` | STL 模板缺口夹具（`gen-landmine.sh` 生成） |
-| `check-symbol-gap.mjs` | §5.4 缺口检查器（已修 F-4） |
+| `check-symbol-gap.mjs` | §5.4 缺口检查器（已修 F-4，tag 单列） |
 | `toolchain/emsdk` | emsdk 6.0.12（**未入库**，见 `.gitignore`） |
+
+---
+
+## 9. 宿主配置的实测代价（F-3 更正后的三条路）
+
+| 宿主配置 | 导出数 | tag | 体积 | 结果 |
+|---|---|---|---|---|
+| `MAIN_MODULE=2` bare | 30 | 无 | — | ❌ `LinkError`：缺 tag |
+| `MAIN_MODULE=2` + 只导 tag | 32 | 有 | — | ❌ 仍缺其余符号 |
+| `MAIN_MODULE=2` + 50 行 keep-list | 76 | 有 | **163,130 B** | ✅ 全绿 |
+| `MAIN_MODULE=1`（无 DCE） | 5,790 | 有 | **1,413,116 B** | ✅ 全绿 |
+
+复跑：`sh run-mm2-keeplist.sh`（三行一组依次验证）。
+⇒ **MM=2 + keep-list 是正确的主路**；MM=1 是把 8.7× 的体积当"省事"来买。
+下游当前用的正是 MM=2 + 1304 行 keep-list（`octave.build.json`）。
