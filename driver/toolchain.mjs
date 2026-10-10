@@ -17,6 +17,7 @@
 // It does NOT own: fetching assets, sha256 verification, the Worker boundary
 // (SPEC §7.3) or packaging. Callers supply those.
 import { readFileSync, existsSync, readdirSync } from 'fs';
+import { loadBundle, installBundle } from './sysroot-bundle.mjs';
 import { join, dirname } from 'path';
 import { createRequire } from 'module';
 
@@ -140,13 +141,51 @@ export class Toolchain {
     this.lldBin = opts.lldBin;
     this.clangJs = opts.clangJs || 'clang.js';
     this.lldJs = opts.lldJs || 'lld.js';
-    this.sysroot = opts.sysroot;
+    this.sysroot = opts.sysroot;             // dev path: an emsdk sysroot dir
+    this.bundle = opts.bundle || null;       // delivery path: {tarPath, manifestPath}
+    if (!this.sysroot && !this.bundle) {
+      throw new Error('Toolchain needs either sysroot (directory) or bundle ({tarPath, manifestPath})');
+    }
+    this._bundleFiles = null;
     this.quiet = !!opts.quiet;
     this._clang = null;
     this._lld = null;
   }
 
   _log(...a) { if (!this.quiet) console.log(...a); }
+
+  /**
+   * Unpack the delivered sysroot bundle, verifying sha256 first (SPEC §9.10).
+   * Throws on mismatch — a tampered asset must not load.
+   */
+  _bundle() {
+    if (this._bundleFiles) return this._bundleFiles;
+    if (!this.bundle) return null;
+    const r = loadBundle({
+      tarPath: this.bundle.tarPath,
+      manifestPath: this.bundle.manifestPath,
+      expectSha256: this.bundle.expectSha256,
+    });
+    this._log(`[bundle] verified sha256 ${r.sha256.slice(0, 16)}…, ${r.files.size} files, ${r.bytes} bytes`);
+    this._bundleFiles = r.files;
+    return r.files;
+  }
+
+  /** Stage the sysroot into a module's FS, from whichever source was configured. */
+  _stageSysroot(fs) {
+    if (this.bundle) {
+      const files = this._bundle();
+      // The tar is rooted at "sysroot/...", so install straight into /sysroot.
+      const n = installBundle(fs, files, '');
+      this._log(`[bundle] installed ${n} files into the memory FS`);
+      return n;
+    }
+    const { stage } = this._fs();
+    let n = stage(fs, join(this.sysroot, 'include'), '/sysroot/include');
+    n += stage(fs, join(this.sysroot, 'lib/wasm32-emscripten/pic'),
+               '/sysroot/lib/wasm32-emscripten/pic');
+    return n;
+  }
 
   async _fs() {
     // Stage only what §4.1/§4.2 actually read (SPEC §6: never ship all of lib/).
@@ -169,16 +208,20 @@ export class Toolchain {
     return { stage, staged };
   }
 
+  _hasCrt() {
+    if (this.bundle) {
+      return this._bundle().has('sysroot/lib/wasm32-emscripten/pic/crtbegin-mt.o');
+    }
+    return existsSync(join(this.sysroot, 'lib/wasm32-emscripten/pic/crtbegin-mt.o'));
+  }
+
   async clang() {
     if (this._clang) return this._clang;
     const factory = require(join(this.clangBin, this.clangJs));
     this._clang = await factory({
       print: () => {}, printErr: () => {}, noInitialRun: true,
     });
-    const { stage } = await this._fs();
-    stage(this._clang.FS, join(this.sysroot, 'include'), '/sysroot/include');
-    stage(this._clang.FS, join(this.sysroot, 'lib/wasm32-emscripten/pic'),
-          '/sysroot/lib/wasm32-emscripten/pic');
+    this._stageSysroot(this._clang.FS);
     return this._clang;
   }
 
@@ -250,9 +293,7 @@ export class Toolchain {
 
     // ---- §4.2 link
     const lld = await this.lld();
-    const { stage } = await this._fs();
-    stage(lld.FS, join(this.sysroot, 'lib/wasm32-emscripten/pic'),
-          '/sysroot/lib/wasm32-emscripten/pic');
+    this._stageSysroot(lld.FS);
     lld.FS.mkdirTree('/out');
     lld.FS.writeFile('/out/tu.o', obj);
 
@@ -265,7 +306,7 @@ export class Toolchain {
       '--unresolved-symbols=import-dynamic',
       '-shared', '--no-stack-first',
       ...linkFlagsFor(abi),
-      ...(existsSync(join(this.sysroot, 'lib/wasm32-emscripten/pic/crtbegin-mt.o')) ? [crt] : []),
+      ...(this._hasCrt() ? [crt] : []),
       '/out/tu.o',
       '-L/sysroot/lib/wasm32-emscripten/pic',
     ];

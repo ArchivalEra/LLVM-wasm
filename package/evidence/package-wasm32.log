@@ -1,0 +1,8 @@
+== staging wasm32 ==
+   tar: /mnt/hdd/zcode-projects/LLVM-wasm/package/out/sysroot-wasm32.tar (20623360 bytes)
+   manifest: /mnt/hdd/zcode-projects/LLVM-wasm/package/out/manifest-wasm32.json
+ARTIFACT sysroot_wasm32_tar 20623360
+ARTIFACT sysroot_wasm32_tar_sha256 441e0ee555cb9ee9df2bccd3651d8fe79684fff25281b035274ad82dd8ef827f
+ARTIFACT sysroot_wasm32_tar_brotli 1675293
+ARTIFACT sysroot_wasm32_headers 1577
+== done: /mnt/hdd/zcode-projects/LLVM-wasm/package/out/sysroot-wasm32.tar ==

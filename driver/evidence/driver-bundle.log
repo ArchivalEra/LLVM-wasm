@@ -1,0 +1,34 @@
+clang:  /mnt/hdd/zcode-projects/LLVM-wasm/m1/build-exp-anchor/bin
+lld:    /mnt/hdd/zcode-projects/LLVM-wasm/m1/build-lld/bin (lld-wasm-only.js)
+mode: bundle (sysroot from tar, sha256-checked)
+
+== [1] compile({source}) — the interface SPEC 7.4 asks for ==
+PASS compile() reports ok
+PASS moduleBytes returned: 976 bytes
+
+== [2] the product is a side module ==
+PASS exports minifn: __wasm_call_ctors,_emscripten_tls_init,minifn
+PASS exports __wasm_call_ctors
+PASS exports _emscripten_tls_init
+PASS imports env.memory
+PASS relocatable (__memory_base)
+
+== [3] symbolGap (SPEC 5.4) ==
+PASS gap report present
+   needs 2 symbols, 0 tags; hostChecked=true
+PASS gap report exposes the three named fields
+   missing: 0 fns, 0 tags
+
+== [4] reverse assertions (SPEC 4.5 contract) ==
+PASS unknown abi.exceptions is refused: abi.exceptions must be one of none|emscripten|wasm-legacy|wasm-standard
+PASS unbuilt target wasm64 is refused (not silently wasm32): target wasm64 not built yet (M4); refusing rather than mislabelling
+PASS no source and no files is refused: compile() needs source or files
+
+== [5] symbolGap is a pure function (no host ⇒ no false "all clear") ==
+PASS returns needs count without a host
+PASS does not fabricate missingFunctions without a host
+-- artifacts
+ARTIFACT driver_acceptance_pass 14
+ARTIFACT driver_module_bytes 976
+
+=== ALL PASS ===

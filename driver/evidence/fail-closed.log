@@ -1,0 +1,21 @@
+== control: the honest bundle loads ==
+PASS honest bundle loads: 1578 files
+
+== tampered byte (same name, explicit digest) ==
+PASS tampered bundle refused by digest: sha256 mismatch — refusing to load.
+
+== truncated file ==
+PASS truncated bundle refused by digest: sha256 mismatch — refusing to load.
+
+== tampered byte, verified through the manifest ==
+PASS manifest path also refuses tampering: sha256 mismatch — refusing to load.
+
+== manifest whose byte count disagrees with the file ==
+PASS byte-count disagreement refused: manifest bytes=20623361 but file is 20623360 — refusing
+
+== missing manifest must not silently skip the check ==
+PASS missing manifest refused: manifest missing: /tmp/llvm-wasm-failclosed/no-such.json
+-- artifacts
+ARTIFACT fail_closed_pass 6
+
+=== ALL PASS ===

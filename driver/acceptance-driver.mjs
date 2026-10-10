@@ -49,9 +49,19 @@ const SYSROOT = join(ROOT, 'toolchain/emsdk/upstream/emscripten/cache/sysroot');
 console.log(`clang:  ${CLANG_BIN}`);
 console.log(`lld:    ${LLD_BIN} (${LLD_JS})`);
 
+// M1_BUNDLE=1 drives the delivery path: sysroot from the packaged tar only,
+// with no emsdk directory in sight (that is what a browser has).
+const useBundle = process.env.M1_BUNDLE === '1';
 const tc = new Toolchain({
-  clangBin: CLANG_BIN, lldBin: LLD_BIN, lldJs: LLD_JS, sysroot: SYSROOT, quiet: true,
+  clangBin: CLANG_BIN, lldBin: LLD_BIN, lldJs: LLD_JS, quiet: true,
+  ...(useBundle
+    ? { bundle: {
+        tarPath: process.env.M1_BUNDLE_TAR || join(ROOT, 'package/out/sysroot-wasm32.tar'),
+        manifestPath: process.env.M1_BUNDLE_MANIFEST || join(ROOT, 'package/out/manifest-wasm32.json'),
+      } }
+    : { sysroot: SYSROOT }),
 });
+if (useBundle) console.log('mode: bundle (sysroot from tar, sha256-checked)');
 
 // ============================================================ 1. the happy path
 console.log('\n== [1] compile({source}) — the interface SPEC 7.4 asks for ==');

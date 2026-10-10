@@ -120,7 +120,22 @@ def m1_opt_inputs_fingerprint():
 
 
 DRIVER_INPUTS = ("driver/toolchain.mjs", "driver/acceptance-driver.mjs",
-                 "driver/check-gap-reverse.mjs")
+                 "driver/check-gap-reverse.mjs", "driver/sysroot-bundle.mjs",
+                 "driver/check-fail-closed.mjs")
+
+
+def package_inputs_cmd():
+    return "cat package/package-sysroot.sh | sha256sum | cut -c1-16"
+
+
+def package_inputs_fingerprint():
+    """打包脚本的指纹 —— sysroot tar 体积数字的便宜见证。"""
+    import hashlib                                          # noqa: PLC0415
+    p = os.path.join(GATE_REPO, "package/package-sysroot.sh")
+    if not os.path.exists(p):
+        return "no-script"
+    with open(p, "rb") as fh:
+        return hashlib.sha256(fh.read()).hexdigest()[:16]
 
 
 def driver_inputs_cmd():
@@ -352,6 +367,35 @@ def measure_facts():
                 "m1/evidence", label, replay=False,
                 witness=m1_opt_inputs_cmd(), witness_expect=m1_opt_inputs_fingerprint())
 
+    # ── M2：sysroot 打包 + fail-closed（SPEC §6 / §2 / §9.10）──────────────
+    PKG = repo("package/evidence")
+    for key, log, label in (
+            ("sysroot_wasm32_tar", "package-wasm32.log",
+             "wasm32 sysroot tar 字节（SPEC §6 交付物）"),
+            ("sysroot_wasm32_tar_brotli", "package-wasm32.log",
+             "同上 brotli -q11（与 §6 预算同口径）"),
+            ("sysroot_wasm32_headers", "package-wasm32.log",
+             "tar 里的头文件数（实测构成，非猜测）"),
+            ("sysroot_wasm64_tar", "package-wasm64.log",
+             "wasm64 sysroot tar 字节（与 wasm32 同尺寸：include/ 是架构共享的）")):
+        # sha 型事实（issue #4 ⑤）：值会随打包输入变 ⇒ 显式 replay=False + 见证。
+        if key == "sysroot_wasm64_tar":
+            for skey, slog in (("sysroot_wasm32_tar_sha256", "package-wasm32.log"),):
+                raw = _artifact(os.path.join(PKG, slog), skey)
+                if raw:
+                    facts[skey] = fact(
+                        raw, "grep -m1 '^ARTIFACT %s ' package/evidence/%s | cut -d' ' -f3"
+                        % (skey, slog), "package/evidence",
+                        "sysroot tar 的 sha256（SPEC §9.10 的校验值）", replay=False,
+                        witness=package_inputs_cmd(),
+                        witness_expect=package_inputs_fingerprint())
+        val = _artifact_int(os.path.join(PKG, log), key)
+        if val is not None:
+            facts[key] = fact(
+                val, "grep -m1 '^ARTIFACT %s ' package/evidence/%s | cut -d' ' -f3" % (key, log),
+                "package/evidence", label, replay=False,
+                witness=package_inputs_cmd(), witness_expect=package_inputs_fingerprint())
+
     # ── M2：薄驱动（SPEC §7.4/§7.5）的验收（贵 ⇒ 挂见证）────────────────────
     EVD = repo("driver/evidence")
     for key, log, label in (
@@ -360,13 +404,31 @@ def measure_facts():
             ("driver_module_bytes", "driver-acceptance.log",
              "驱动经内存 FS 产出的 side module 字节数"),
             ("gap_reverse_pass", "gap-reverse.log",
-             "缺口检查的反向断言（真缺口必须被点名）PASS 数")):
+             "缺口检查的反向断言（真缺口必须被点名）PASS 数"),
+            ("fail_closed_pass", "fail-closed.log",
+             "sha256 fail-closed 断言数（篡改/截断/字节数不符/缺 manifest 四类拒绝）")):
         val = _artifact_int(os.path.join(EVD, log), key)
         if val is not None:
             facts[key] = fact(
                 val, "grep -m1 '^ARTIFACT %s ' driver/evidence/%s | cut -d' ' -f3" % (key, log),
                 "driver/evidence", label, replay=False,
                 witness=driver_inputs_cmd(), witness_expect=driver_inputs_fingerprint())
+
+    # ── M1 体积优化实验（隔壁一轮的产物，贵 ⇒ 挂见证）──────────────────────
+    # 值来自 m1/evidence/opt-*.log 的 ARTIFACT 行。
+    for key, log, label in (
+            ("anchor_clang_wasm_brotli", "opt-anchor.log",
+             "MinSizeRel(-Os) 下 clang.wasm 的 brotli（vs 基线 [[m1_clang_wasm_brotli]]）"),
+            ("anchor_clang_wasm", "opt-anchor.log", "同上 raw"),
+            ("lld_wasmonly_brotli", "opt-lld-wasm-only.log",
+             "只留 wasm 驱动的 lld brotli（vs 基线 [[m1_lld_wasm_brotli]]）"),
+            ("lld_wasmonly_raw", "opt-lld-wasm-only.log", "同上 raw")):
+        val = _artifact_int(os.path.join(EV1, log), key)
+        if val is not None:
+            facts[key] = fact(
+                val, "grep -m1 '^ARTIFACT %s ' m1/evidence/%s | cut -d' ' -f3" % (key, log),
+                "m1/evidence", label, replay=False,
+                witness=m1_opt_inputs_cmd(), witness_expect=m1_opt_inputs_fingerprint())
 
     # ── 下游 .oct 的异常符号依赖面（全量普查，贵 ⇒ 挂见证）─────────────────
     # 值来自一次全量扫描（10,246 个 .oct，wasm-dis 读 IMPORT 段），记在

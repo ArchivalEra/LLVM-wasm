@@ -1,0 +1,23 @@
+{
+ "schema": 1,
+ "generated": "2026-10-10T23:12:18+0800",
+ "_why": "SPEC 2/9.10: every asset carries bytes + sha256 so the loader can fail closed. Numbers here are measured at package time.",
+ "toolchain": {
+  "emcc": "emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.12 (5488e0871d46d19a3209988190fa6a653126256f)",
+  "arch": "wasm32",
+  "llvm_target": "wasm32-unknown-emscripten"
+ },
+ "assets": [
+  {
+   "name": "sysroot-wasm32.tar",
+   "bytes": 20623360,
+   "sha256": "441e0ee555cb9ee9df2bccd3651d8fe79684fff25281b035274ad82dd8ef827f",
+   "brotli_bytes": 1675293,
+   "contains": {
+    "headers": 1577,
+    "pic_objects": 1,
+    "note": "include/ tree + pic/crtbegin-mt.o only; .a archives excluded (SPEC 5.1)"
+   }
+  }
+ ]
+}
