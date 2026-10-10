@@ -17,7 +17,9 @@ submodule 钉住（pin = commit，字节 = sha256）。需求书是**唯一一�
 （见 `to-questionnaire-clang-wasm-m1.md` 的 C0）。
 报告：[`m1/OPT-RESULTS.md`](m1/OPT-RESULTS.md)（实验）· [`m1/OPT-REVIEW.md`](m1/OPT-REVIEW.md)（独立复核）。
 
-下一步是 **M2**（进程内薄驱动 + Worker 化 + sysroot 打包）。
+**M2 进行中**：薄驱动已完成（SPEC §7.4/§7.5 的 `compile()` 接口 + §5.4 缺口检查，
+见 [`driver/RESULTS.md`](driver/RESULTS.md)）。还剩 **Worker 化**（§7.3）、
+**sysroot 打包**（§6）、**manifest + sha256**（§2/§9.10）。
 
 **体积优化实验（已完成一轮，结论已定）**：SPEC §6 的 15 MB 预算**到不了**。
 最有效的两根杠杆是 `MinSizeRel`（真 `-Os`）与「lld 只留 wasm 驱动」，
@@ -44,6 +46,10 @@ sh gates-selftest.sh                              # 每道闸门先证明自己�
 # M1：把 clang / lld 编成 wasm，然后在 wasm 里编+链（约 20–30 分钟，24 核）
 bash m1/build-clang-wasm.sh both
 node m1/acceptance-full.mjs
+
+# M2：薄驱动（源码字符串 → side module 字节 + 缺口报告）
+node driver/acceptance-driver.mjs
+node driver/check-gap-reverse.mjs
 
 # M0：手搓 side module 并让真宿主 dlopen 它
 sh m0/run-m0.sh               # wasm32：编 side → 手链 → 编宿主 → dlopen → 查缺口
@@ -90,6 +96,7 @@ python3 toolchain/emsdk/emsdk.py install <版本> && python3 toolchain/emsdk/ems
 |---|---|
 | `m0/` | M0 验证链：夹具、runner、证据日志、RESULTS.md |
 | `m1/` | M1 构建与验收：把 clang/lld 编成 wasm，wasm 内全链验收 |
+| `driver/` | M2 薄驱动：`compile()` 接口 + §5.4 缺口检查 |
 | `zreflect/` | Einfacht 机制层（vendored）：闸门 / 台账 / 渲染 |
 | `reflect-hooks/` | git 钩子与旋钮载体 `Einfacht.env` |
 | `toolchain/` | emsdk（**不入库**） |

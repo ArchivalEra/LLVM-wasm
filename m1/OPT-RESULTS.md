@@ -171,26 +171,41 @@ em++: error: &&: No such file or directory ("&&" was expected to be an input fil
 C++ 异常对 wasm 的代价是双份的：每个函数一套 `__gcc_except_tab` 表 + landing pad 代码。
 LLVM 官方支持 `LLVM_ENABLE_EH=OFF`，所以这不是歪门邪道。
 
-**本轮实测结论：走不通，卡在 LLVM 自己的代码上。**
+> **⚠️ 本节第一版把根因写错了，已更正（2026-10-10 复核）。**
+> 原文说"要做成需要改源码"——**不对**。真实原因是我方旗标自相矛盾：
+> 编译期给了 `-fno-exceptions`，而链接行里还留着 `-fwasm-exceptions`，
+> emcc 因此选中 `libclang_rt.builtins-legacysjlj`（该变体**不提供**
+> `emscripten_longjmp`），于是链接期缺符号。
+> 复核与独立验证见 `m1/OPT-REVIEW.md` §1；逐条判据见本节末尾。
+
+**真实机制**（`toolchain/emsdk/.../sysroot/lib/wasm32-emscripten/` 下逐档 `llvm-nm` 实测）：
+
+| builtins 变体 | 有 `emscripten_longjmp`？ |
+|---|---|
+| `libclang_rt.builtins.a` / `-mt` / `-ww` | **有** |
+| `libclang_rt.builtins-legacysjlj*.a` | **无** |
+| `libclang_rt.builtins-wasmsjlj*.a` | **无** |
+
+第一次 `lean` 的链接行里同时有 `-fno-exceptions`（×2）与 `-fwasm-exceptions`（×1）
+⇒ emcc 走 legacy-SJLJ 那一支 ⇒ 拿到没有 `emscripten_longjmp` 的 builtins ⇒ 缺符号。
+
+**正解不是改源码，是改旗标**：
 
 ```
-wasm-ld: error: lib/libLLVMSupport.a(CrashRecoveryContext.cpp.o):
-                 undefined symbol: emscripten_longjmp   (×2)
+-Os -fno-exceptions -fno-rtti -sSUPPORT_LONGJMP=wasm      # 链接期不要带 -fwasm-exceptions
 ```
 
-`CrashRecoveryContext` 用 `setjmp/longjmp` 做崩溃恢复；`-fno-exceptions` 之后
-emscripten 的 `longjmp` 支持路径对不上（emcc 侧默认转成了 `-lunwind-legacyexcept`
-+ `-mllvm -wasm-use-legacy-eh`），链接期直接缺符号。
+对应的实验配置是 `m1/exp-run.sh` 的 `lean_nosjlj`。**实测结果见 §5.2.1。**
 
-**要做成需要改源码**（超出 2 小时，也超出"不重写架构"的约束），两条路：
-1. 给 wasm 平台编一份 `CrashRecoveryContext`（`#ifdef __EMSCRIPTEN__` 走空实现）——
-   LLVM 已有 `LLVM_ENABLE_CRASH_OVERRIDES` 之类的旋钮可作为落点；
-2. 用 `longjmp` 的原生支持：`-sSUPPORT_LONGJMP=wasm` + `-mllvm -wasm-enable-sjlj`
-   显式打开（本轮没试，是**下一个最该试的命令**）。
+**另一条 cmake 侧的硬约束**（本轮实测撞到两次）：`LLVM_ENABLE_RTTI=OFF` 只有在
+`LLVM_ENABLE_EH=OFF` 时才被允许（`HandleLLVMOptions.cmake:1244` 反过来也拦）。
+所以正确姿势是 `-DLLVM_ENABLE_EH=OFF`，RTTI 在**编译器层**用 `-fno-rtti` 关。
 
-预估收益：如果异常表和 typeinfo 合计占 10–20%（这是 C++ 大型工程的常见区间，
-本轮没量到），两个 wasm 合计大约能到 **17–19 MB**，**仍然差 15 MB 一截**。
-所以就算打通，15 MB 这个预算**大概也要改**——这条判断交给委托人定。
+#### 5.2.1 实测：`lean_nosjlj` 的结果
+
+（见下方"结果"小节——本节由 `m1/exp-run.sh lean_nosjlj` 产出。）
+
+
 
 ### 5.3 其它还没试、但按 §5.1 的量级判断收益有限的
 

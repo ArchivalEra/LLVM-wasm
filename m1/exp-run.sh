@@ -22,6 +22,20 @@ run() {                           # run <工具> <build_type> <cxx_flags> [extra
     bash "$ROOT/m1/exp-build.sh" "$NAME" "$@"
 }
 
+# run_lf：同上，但显式给链接期旗标。lean_nosjlj 需要它 —— 默认链接旗标里带的
+# `-fwasm-exceptions` 与 `-fno-exceptions` 冲突，会把 emcc 推去选
+# libclang_rt.builtins-legacysjlj（该变体没有 emscripten_longjmp），
+# 于是链接期缺符号。机制与复核见 m1/OPT-REVIEW.md §1。
+run_lf() {                        # run_lf <工具> <build_type> <cxx_flags> <link_flags> [cmake...]
+  local tools="$1" bt="$2" cxx="$3" lf="$4"; shift 4
+  echo "===== config=$NAME tools=$tools build_type=$bt (custom link flags)"
+  echo "# CXX_FLAGS: $cxx" >&2
+  echo "# LINK_FLAGS: $lf" >&2
+  EXP_TOOLS="$tools" EXP_BUILD_TYPE="$bt" EXP_C_FLAGS="$cxx" EXP_CXX_FLAGS="$cxx" \
+  EXP_LINK_FLAGS="$lf" EXP_OUT="$ROOT/m1/build-exp-$NAME" \
+    bash "$ROOT/m1/exp-build.sh" "$NAME" "$@"
+}
+
 case "$NAME" in
   # 仅保留 WebAssembly 后端 + -Os（基线是 -O3）
   anchor)
@@ -29,10 +43,34 @@ case "$NAME" in
 
   # 无 EH / 无 RTTI：C++ 异常与 typeinfo 全关（LLVM 官方支持这两个开关）。
   # 目的：量化「异常表 + landing pad + typeinfo」在 71 MB 里占多少。
+  #
+  # ⚠️ 这个配置**失败**，而且失败原因是**我方旗标自相矛盾**，不是"必须改 LLVM 源码"
+  #    （上一轮我把根因写错了，复核见 m1/OPT-REVIEW.md §1）：
+  #    这里的链接旗标默认带 `-fwasm-exceptions`，与编译期的 `-fno-exceptions`
+  #    同时在场 ⇒ emcc 选中 libclang_rt.builtins-legacysjlj（无 emscripten_longjmp）
+  #    ⇒ 链接期 undefined symbol。正解见下面的 lean_nosjlj。
   lean)
     run clang MinSizeRel \
       "-Os -fno-exceptions -fno-rtti -fno-unwind-tables -fno-asynchronous-unwind-tables -DLLVM_ENABLE_EH=OFF -DLLVM_ENABLE_RTTI=OFF" \
       -DLLVM_ENABLE_EH=OFF -DLLVM_ENABLE_RTTI=OFF ;;
+
+  # lean 的**修正版**：去掉矛盾的 `-fwasm-exceptions`，显式 `-sSUPPORT_LONGJMP=wasm`，
+  # 并把 emcc 从 "legacy SJLJ" 世界拉回来（这是 emscripten_longjmp 的家）。
+  # 这一版才真正回答「关掉异常+RTTI 能省多少」。
+  #
+  # ⚠️ cmake 侧只能给 `-DLLVM_ENABLE_EH=OFF`，RTTI 必须留 ON：
+  #    HandleLLVMOptions.cmake 有硬判据「EH=ON 时 RTTI 必须 ON」，
+  #    给 `-DLLVM_ENABLE_RTTI=OFF` 会直接 FATAL（实测两次）。
+  #    RTTI 我们改在**编译器层**用 `-fno-rtti` 关（这才是进代码生成的那个开关）。
+  lean_nosjlj)
+    run_lf clang MinSizeRel \
+      "-Os -fno-exceptions -fno-rtti -fno-unwind-tables -fno-asynchronous-unwind-tables" \
+      "-sWASM=1 -sALLOW_MEMORY_GROWTH=1 -sSTACK_SIZE=5242880 -sEXIT_RUNTIME=0 \
+-sINITIAL_MEMORY=268435456 -sFORCE_FILESYSTEM=1 -sMODULARIZE=1 \
+-sEXPORT_NAME=createToolChain \
+-sEXPORTED_RUNTIME_METHODS=FS,callMain,ccall,cwrap,getValue,setValue \
+-sSUPPORT_LONGJMP=wasm" \
+      -DLLVM_ENABLE_EH=OFF ;;
 
   # 只关 RTTI（保留异常）：-fno-rtti 在 LLVM 侧由 LLVM_ENABLE_RTTI 支持，
   # 不触碰 CrashRecoveryContext 的 longjmp 路径，是"能跑"的那一半。
