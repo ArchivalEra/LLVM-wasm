@@ -49,6 +49,9 @@ sh m0/run-mm2-keeplist.sh     # 宿主符号契约的三条路（bare / +tag / +
 EXP_JOBS=20 bash m1/exp-run.sh anchor          # MinSizeRel（-Os）那根杠杆
 bash m1/patch-lld-wasm-only.sh                 # lld 只留 wasm 驱动
 cd m1/build-lld && ninja lld-wasm-only && cd ../..
+# 量体积（q11 = 与 SPEC §6 预算同口径；一次要 1–10 分钟）
+python3 -c "import brotli,sys;print(len(brotli.compress(open(sys.argv[1],'rb').read(),quality=11)))" \
+  m1/build-exp-anchor/bin/clang.wasm
 ```
 
 结果记录在 [`m1/RESULTS.md`](m1/RESULTS.md) 与 [`m0/RESULTS.md`](m0/RESULTS.md)；
