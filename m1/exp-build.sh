@@ -119,11 +119,16 @@ esac
 
 # ---------------------------------------------------------- 机器可读产物行
 # 与主脚本同一形状：facts.py / 结果表只需要 grep ARTIFACT。
+#
+# ⚠️ `gzip -9 -c <file>` 会把**文件名**写进 gzip 头（实测：同一个 48,069,274 B 的
+#    wasm，在 A 路径量得 17,317,088、换到 B 路径量得 17,317,087 —— 差的就是名字长度）。
+#    那意味着「同一个字节流」的 gzip 值会随**量它的路径**漂移，复跑必然对不上。
+#    必须 `-n`（--no-name）去掉文件名与时间戳，量出来的才是内容本身的属性。
 measure() {                       # measure <key> <wasm>
   local key="$1" wa="$2"
   [ -f "$wa" ] || return 0
   printf 'ARTIFACT %s_wasm %s\n' "$key" "$(stat -c%s "$wa")"
-  printf 'ARTIFACT %s_wasm_gzip %s\n' "$key" "$(gzip -9 -c "$wa" | wc -c)"
+  printf 'ARTIFACT %s_wasm_gzip %s\n' "$key" "$(gzip -9 -nc "$wa" | wc -c)"
   local br
   br=$(python3 -c "
 import brotli,sys

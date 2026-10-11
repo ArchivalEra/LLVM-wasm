@@ -351,22 +351,6 @@ def measure_facts():
                 "m1/evidence", label, replay=False,
                 witness=m1_inputs_cmd(), witness_expect=m1_inputs_fingerprint())
 
-    # ── M1 体积优化实验（隔壁一轮的产物，贵 ⇒ 挂见证）──────────────────────
-    # 值来自 m1/evidence/opt-*.log 的 ARTIFACT 行。
-    for key, log, label in (
-            ("anchor_clang_wasm_brotli", "opt-anchor.log",
-             "MinSizeRel(-Os) 下 clang.wasm 的 brotli（vs 基线 [[m1_clang_wasm_brotli]]）"),
-            ("anchor_clang_wasm", "opt-anchor.log", "同上 raw"),
-            ("lld_wasmonly_brotli", "opt-lld-wasm-only.log",
-             "只留 wasm 驱动的 lld brotli（vs 基线 [[m1_lld_wasm_brotli]]）"),
-            ("lld_wasmonly_raw", "opt-lld-wasm-only.log", "同上 raw")):
-        val = _artifact_int(os.path.join(EV1, log), key)
-        if val is not None:
-            facts[key] = fact(
-                val, "grep -m1 '^ARTIFACT %s ' m1/evidence/%s | cut -d' ' -f3" % (key, log),
-                "m1/evidence", label, replay=False,
-                witness=m1_opt_inputs_cmd(), witness_expect=m1_opt_inputs_fingerprint())
-
     # ── M2：sysroot 打包 + fail-closed（SPEC §6 / §2 / §9.10）──────────────
     PKG = repo("package/evidence")
     for key, log, label in (
@@ -428,7 +412,21 @@ def measure_facts():
             ("anchor_clang_wasm", "opt-anchor.log", "同上 raw"),
             ("lld_wasmonly_brotli", "opt-lld-wasm-only.log",
              "只留 wasm 驱动的 lld brotli（vs 基线 [[m1_lld_wasm_brotli]]）"),
-            ("lld_wasmonly_raw", "opt-lld-wasm-only.log", "同上 raw")):
+            ("lld_wasmonly_raw", "opt-lld-wasm-only.log", "同上 raw"),
+            # ── 关异常+RTTI 这根杠杆（第三轮打通；见 OPT-RESULTS.md §5.2）──────
+            # 数字产地 = m1/evidence/opt-lean_nosjlj.log，由
+            # `EXP_JOBS=22 bash m1/exp-run.sh lean_nosjlj` 产出 —— **ninja 一把过**，
+            # 不是手工重链。这一点很重要：值必须来自别人也能复跑的那条命令。
+            # 该日志末尾附了**失败的那一次**（带 -sSUPPORT_LONGJMP=wasm）—— 那是
+            # 翻案 R-008 的证据，不能丢，否则"为什么要去掉那个旗标"就没有产地，
+            # 下一个 agent 会再踩一次。
+            ("lean_nosjlj_clang_wasm_brotli", "opt-lean_nosjlj.log",
+             "关 C++ 异常 + RTTI 后 clang.wasm 的 brotli（三轮里最好的 clang）"),
+            ("lean_nosjlj_clang_wasm", "opt-lean_nosjlj.log", "同上 raw"),
+            ("lean_nosjlj_clang_wasm_gzip", "opt-lean_nosjlj.log",
+             "同上 gzip（`-n` 口径：不含文件名/时间戳，见 exp-build.sh 的说明）"),
+            ("lean_nosjlj_acceptance_pass", "opt-lean_nosjlj-acceptance.log",
+             "关异常后的 clang 仍能编出 side module（验收 PASS 数）")):
         val = _artifact_int(os.path.join(EV1, log), key)
         if val is not None:
             facts[key] = fact(

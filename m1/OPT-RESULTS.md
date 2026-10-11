@@ -12,11 +12,17 @@
 
 | 问题 | 答案 |
 |---|---|
-| 哪根杠杆最有效？ | **`CMAKE_BUILD_TYPE=MinSizeRel`（真 · `-Os`）**，clang 的 brotli 从 16.40 MB → **13.30 MB（−18.9%）** |
-| 第二有效？ | **lld 只留 wasm 驱动**，brotli 9.66 MB → **8.50 MB（−12.1%）** |
-| 能到 15 MB 吗？ | **到不了。** 目前最好组合 **21.80 MB，超预算 45%**（差 6.80 MB） |
+| 哪根杠杆最有效？ | **`CMAKE_BUILD_TYPE=MinSizeRel`（真 · `-Os`）**，clang brotli 16.40 → 13.30 MB（−18.9%） |
+| 第二有效？ | **lld 只留 wasm 驱动**，brotli 9.66 → 8.50 MB（−12.1%） |
+| 第三有效？ | **关 C++ 异常 + RTTI**（`-fno-exceptions -fno-rtti`），clang 再 −5.2% → 12.61 MB（§5.2.1） |
+| 能到 15 MB 吗？ | **到不了。** 目前最好组合 **21.11 MB，超预算 41%**（差 6.11 MB） |
 | 这个组合还能跑吗？ | **能。** 整链验收 **10 PASS / 0 FAIL**，`minifn.so` 976 B 与基线一致（§4） |
-| 唯一可能达标的路径？ | 关掉 C++ 异常 + RTTI（见 §5：LLVM 自身的 `CrashRecoveryContext` 挡路，需要改源码打通 `emscripten_longjmp`）。**我没做成，这是本轮最值钱的负结果。** |
+| 还剩什么可能？ | 只剩"改功能集合"或"改交付形态"（§5.3）。**按现有功能集合，预算本身不成立。** |
+
+> **⚠️ 本文有过一处错误的根因诊断，已更正**：§5.2 第一版把"关异常失败"归因于
+> 「需要改 LLVM 源码」。**错。** 真实原因是旗标选择问题，而且**两轮 agent 都猜反了
+> 修法** —— 复核者建议的 `-sSUPPORT_LONGJMP=wasm` 恰恰是**制造**故障的那个旗标。
+> 完整机制与实测对照见 §5.2.2。这是本单最值得读的一节。
 
 **本单最重要的一个发现**（改变了后面所有实验的解释方式）：
 基线**根本不是 `-O1`**。`m1/build-clang-wasm.sh` 写 `-DCMAKE_C_FLAGS="-O1"`，
@@ -41,12 +47,13 @@
 
 | # | 配置 | raw | brotli q11 | 验收 | 复跑命令 |
 |---|---|---|---|---|---|
-| 1 | **`anchor`：`MinSizeRel`(`-Os`) + 链接 `-O3`** | **51,580,817** | **13,301,149** | **10 PASS** | `bash m1/exp-run.sh anchor` |
-| 2 | `anchor_oz`：锚点对象 + 链接 `-Oz` | 50,748,892 | 13,307,575 | 未单测² | `python3 m1/exp-relink.py --tool clang --name anchor_oz --build m1/build-exp-anchor --emcc="-Oz"` |
-| 3 | `baseline`：`Release`(实际 `-O3`) | 71,055,261 | 16,400,451 | **10 PASS** | `bash m1/build-clang-wasm.sh clang` |
-| 4 | `baseline` + `wasm-opt -Oz --converge`（26 分钟） | 69,913,426 | — | 未测 | 见 §2 |
+| 1 | **`lean_nosjlj`：`-Os` + 关异常 + 关 RTTI** | **48,069,274** | **12,614,129** | **10 PASS** | `EXP_JOBS=22 bash m1/exp-run.sh lean_nosjlj` |
+| 2 | `anchor`：`MinSizeRel`(`-Os`)，带异常 | 51,580,817 | 13,301,149 | **10 PASS** | `bash m1/exp-run.sh anchor` |
+| 3 | `anchor_oz`：锚点对象 + 链接 `-Oz` | 50,748,892 | 13,307,575 | 未单测² | `python3 m1/exp-relink.py --tool clang --name anchor_oz --build m1/build-exp-anchor --emcc="-Oz"` |
+| 4 | `baseline`：`Release`(实际 `-O3`) | 71,055,261 | 16,400,451 | **10 PASS** | `bash m1/build-clang-wasm.sh clang` |
+| 5 | `baseline` + `wasm-opt -Oz --converge`（26 分钟） | 69,913,426 | — | 未测 | 见 §2 |
 
-² `anchor_oz` 与 `anchor` 只差链接旗标（对象文件完全相同），验收结论由 #1 覆盖；
+² `anchor_oz` 与 `anchor` 只差链接旗标（对象文件完全相同），验收结论由 #2 覆盖；
 **注意链接 `-Oz` 让 raw 再降 0.8 MB，但 brotli 反而涨了 6 KB** —— 见下方"结论 3"。
 
 > **结论 3（重要）**：链接期 `-Oz` 对 brotli **无效甚至微负**。
@@ -70,16 +77,20 @@
 | 组合 | clang | lld | 合计 | vs 15 MB |
 |---|---|---|---|---|
 | 基线 | 16,400,451 | 9,660,186 | **26,060,637**（24.85 MiB） | **+74%** |
-| 本轮最好（`anchor` + `wasmonly`） | 13,301,149 | 8,495,303 | **21,796,452**（20.79 MiB） | **+45%** |
+| `anchor` + `wasmonly` | 13,301,149 | 8,495,303 | **21,796,452**（20.79 MiB） | **+45%** |
+| **本轮最好（`lean_nosjlj` + `wasmonly`）** | **12,614,129** | **8,495,303** | **21,109,432**（20.13 MiB） | **+41%** |
 
-⇒ **省下 4,264,185 B（−16.4%）**，距离达标还差 **6,796,452 B**。
+⇒ **省下 4,951,205 B（−19.0%）**，距离达标还差 **6,109,432 B**。
 
-这个组合整链跑过验收（**10 PASS / 0 FAIL**，日志 `m1/evidence/opt-combo-acceptance.log`）：
+这个组合整链跑过验收（**10 PASS / 0 FAIL**，日志 `m1/evidence/opt-lean_nosjlj-acceptance.log`）：
 
 ```sh
-M1_CLANG_BIN=m1/build-exp-anchor/bin M1_LLD_BIN=m1/build-lld/bin \
+M1_TAG=lean_nosjlj M1_CLANG_BIN=m1/build-exp-lean_nosjlj/bin M1_LLD_BIN=m1/build-lld/bin \
   M1_LLD_JS=lld-wasm-only.js node m1/acceptance-full.mjs
 ```
+
+（`M1_TAG` 把这次验收的 `ARTIFACT` 键和基线那次分开，两趟的数字不会互相覆盖 ——
+见该脚本的注释。）
 
 ⇒ 两份体积更小的产物**确实还能在 wasm 里编出 ABI 正确的 side module**（976 B，与基线同尺寸）。
 
@@ -109,7 +120,7 @@ M1_CLANG_BIN=m1/build-exp-anchor/bin M1_LLD_BIN=m1/build-lld/bin \
 | 2 | `wasm-opt -Oz --converge`（跑到不动点，26 分钟） | raw **69,913,426**（−1.14 MB，−1.6%） | 同上；brotli 层面收益只会更小 |
 | 3 | 链接期 `-Oz`（不动对象，只换链接旗标） | clang raw −0.8 MB 但 brotli **+6 KB**；lld raw −1.0 MB / brotli **−24 KB（−0.25%）** | emcc 链接默认已按 `-O3` 跑 binaryen，`-Oz` 只是把同一批 pass 换个挡 |
 | 4 | 把 `-DCMAKE_C_FLAGS="-O1"` 改成 `-Os`（照交接单字面做） | **实测无效**：`Release` 在后面追加 `-O3 -DNDEBUG`，emcc 认最后一个 `-O` ⇒ 只改 `-O1` 那一处等于没改 | 必须改 `CMAKE_BUILD_TYPE` 才真正换挡；这正是 §0 的发现，也是**本单唯一的大杠杆**（−18.9%） |
-| 5 | `-fno-exceptions -fno-rtti`（配置名 `lean`） | **链接失败** | `libLLVMSupport/CrashRecoveryContext.cpp.o` 引用 `emscripten_longjmp`，`-fno-exceptions` 下没有定义。详见 §5 |
+| 5 | `-fno-exceptions -fno-rtti`（配置名 `lean`，**第一次**） | **链接失败** | 链接行里同时有 `-fno-exceptions` 与 `-fwasm-exceptions`，emcc 选了不带 `emscripten_longjmp` 的 builtins 变体。**这是旗标问题，不是源码问题** —— 根因与正解见 §5.2.2（后来打通了：−5.2%，配置名 `lean_nosjlj`） |
 | 6 | 只关 RTTI（`LLVM_ENABLE_RTTI=OFF`，配置名 `lean2`） | **cmake 直接拒绝** | `HandleLLVMOptions.cmake:1244`：`LLVM_ENABLE_EH=ON` 时 RTTI 必须 ON |
 | 7 | `EM_COMPILER_WRAPPER=ccache`（交接单暗示的接法） | **完全无效**，命中数恒 0 | emsdk 6.0.12 的 `emcc.py:527` 读的是 `config.COMPILER_WRAPPER`，而**没有任何代码从环境变量给它赋值**。见 §6 |
 | 8 | 只调 clang 的 C++ 开关（`CLANG_ENABLE_*`） | 没做（时间盒） | 那些开关在基线里**已经 OFF**，边际收益集中在 driver/诊断表，量级小于 `-Os` |
@@ -136,10 +147,15 @@ em++: error: &&: No such file or directory ("&&" was expected to be an input fil
 
 | 产物 | 验收 | 结果 |
 |---|---|---|
-| **本轮最好组合**：clang `anchor` + lld `wasmonly` | `M1_CLANG_BIN=m1/build-exp-anchor/bin M1_LLD_BIN=m1/build-lld/bin M1_LLD_JS=lld-wasm-only.js node m1/acceptance-full.mjs` | **10 PASS / 0 FAIL**，`minifn.so` = 976 B（与基线同尺寸） |
+| **本轮最好组合**：clang `lean_nosjlj` + lld `wasmonly` | `M1_CLANG_BIN=m1/build-exp-lean_nosjlj/bin M1_LLD_BIN=m1/build-lld/bin M1_LLD_JS=lld-wasm-only.js node m1/acceptance-full.mjs` | **10 PASS / 0 FAIL**，`minifn.so` = 976 B（与基线同尺寸） |
+| `anchor` + `wasmonly` | 同上，`M1_CLANG_BIN=m1/build-exp-anchor/bin` | **10 PASS / 0 FAIL** |
 | lld `wasmonly`（单查） | `M1_LLD_BIN=m1/build-lld/bin M1_LLD_JS=lld-wasm-only.js node m1/acceptance-lld-only.mjs` | **8 PASS / 0 FAIL** |
 | lld `baseline`（对照） | `node m1/acceptance-lld-only.mjs` | 8 PASS / 0 FAIL |
 | clang `anchor_oz` | 未单测（对象与 `anchor` 相同，只差链接旗标） | — |
+
+**`lean_nosjlj` 的验收值得一提**：它不仅"能启动"，还**真的编出了带 STL 的 C++ 对象**
+（`std::string` 那支夹具），并被 `wasmonly` 链成 ABI 正确的 side module。
+⇒ 「关掉异常」关掉的是**编译器自身**的异常，不影响它**编译别人的代码**。
 
 `m1/acceptance-lld-only.mjs` 是本轮新增的：只跑"链接"那一半，输入固定为
 `m1/acceptance/hello.o`，所以 lld 是唯一变量（`acceptance-full.mjs` 会先编译，慢一个数量级）。
@@ -201,9 +217,96 @@ LLVM 官方支持 `LLVM_ENABLE_EH=OFF`，所以这不是歪门邪道。
 `LLVM_ENABLE_EH=OFF` 时才被允许（`HandleLLVMOptions.cmake:1244` 反过来也拦）。
 所以正确姿势是 `-DLLVM_ENABLE_EH=OFF`，RTTI 在**编译器层**用 `-fno-rtti` 关。
 
-#### 5.2.1 实测：`lean_nosjlj` 的结果
+#### 5.2.1 实测：`lean_nosjlj` —— **这根杠杆真的打通了，而且是新的最优**
 
-（见下方"结果"小节——本节由 `m1/exp-run.sh lean_nosjlj` 产出。）
+**结论：关掉 C++ 异常 + RTTI 是有效的，clang brotli 13.30 → 12.61 MB。**
+
+| clang 配置 | raw | brotli q11 | 验收 |
+|---|---|---|---|
+| `anchor`（`-Os`，带异常） | 51,580,817 | 13,301,149 | 10 PASS |
+| **`lean_nosjlj`（`-Os` + 关异常 + 关 RTTI）** | **48,069,274** | **12,614,129** | **10 PASS** |
+| 相对 `anchor` | **−6.8%** | **−5.2%** | 产物 976 B 同尺寸 |
+
+⇒ 异常 + RTTI 的代价是 **687 KB brotli**（约 5.2%）。
+比我原来的乐观预估（10–20%）小得多 —— 这也是一条**该被记下来的负结果**：
+"关异常"对 LLVM 这种以 C++ 为主但异常使用密度不高的代码库，收益是**个位数百分比**。
+
+**新的最好组合**：
+
+| | clang | lld | 合计 | vs 15 MB |
+|---|---|---|---|---|
+| 基线 | 16,400,451 | 9,660,186 | 26,060,637 | +74% |
+| `anchor` + `wasmonly` | 13,301,149 | 8,495,303 | 21,796,452 | +45% |
+| **`lean_nosjlj` + `wasmonly`** | **12,614,129** | **8,495,303** | **21,109,432** | **+41%** |
+
+⇒ 距离 15 MB 仍差 **6,109,432 B**。**结论不变：到不了。**
+
+#### 5.2.2 真正的根因（两轮 agent 都猜反了，以实测为准）
+
+复核者（`m1/OPT-REVIEW.md` §1）指出"不是要改源码，是旗标冲突"，**方向对**；
+但它给的确切修法（`-sSUPPORT_LONGJMP=wasm`）**是把情况弄坏，不是修好**。实测：
+
+| 链接旗标 | emcc 选中的 builtins 变体 | 该变体有 `emscripten_longjmp`？ | 结果 |
+|---|---|---|---|
+| 带 `-sSUPPORT_LONGJMP=wasm`（默认 `WASM_LEGACY_EXCEPTIONS=true`） | `libclang_rt.builtins-legacysjlj` | **无** | **链接失败** |
+| **不设** `SUPPORT_LONGJMP` | `libclang_rt.builtins` | **有** | **链接成功** |
+
+机制在 emscripten 自己的源码里（`tools/system_libs.py:898` 的
+`get_default_variation`）：
+
+```python
+if settings.SUPPORT_LONGJMP == 'wasm':
+    if settings.WASM_LEGACY_EXCEPTIONS:      # 默认 true（settings.js:803）
+        eh_mode = Exceptions.WASM_LEGACY      # -> 名字后缀 '-legacysjlj'
+    else:
+        eh_mode = Exceptions.WASM              # -> '-wasmsjlj'
+else:
+    eh_mode = Exceptions.EMSCRIPTEN            # -> 无后缀，即 builtins.a
+```
+
+`-fno-exceptions` 下 `CrashRecoveryContext.cpp` 的 `setjmp/longjmp` 正好展开成
+`emscripten_longjmp`，而 `-legacysjlj` / `-wasmsjlj` 两个变体都**不含**这个符号
+（`llvm-nm --defined-only` 逐档验过，见 `m1/OPT-REVIEW.md` §1.2 的表 —— 那张表是对的）。
+
+⇒ **正解 = 不设 `SUPPORT_LONGJMP`，让 emcc 留在 `Exceptions.EMSCRIPTEN`。**
+
+**完整可复跑的 flag（这就是新基线）**：
+
+```
+# cmake
+-DCMAKE_BUILD_TYPE=MinSizeRel
+-DLLVM_ENABLE_EH=OFF                    # RTTI 必须留 ON（见下）
+-DCMAKE_C_FLAGS="-Os -fno-exceptions -fno-rtti -fno-unwind-tables -fno-asynchronous-unwind-tables"
+-DCMAKE_CXX_FLAGS=<同上>
+-DCMAKE_EXE_LINKER_FLAGS="-sWASM=1 -sALLOW_MEMORY_GROWTH=1 -sSTACK_SIZE=5242880 \
+  -sEXIT_RUNTIME=0 -sINITIAL_MEMORY=268435456 -sFORCE_FILESYSTEM=1 -sMODULARIZE=1 \
+  -sEXPORT_NAME=createToolChain \
+  -sEXPORTED_RUNTIME_METHODS=FS,callMain,ccall,cwrap,getValue,setValue"
+  #                                  ^^^ 注意：**没有** -fwasm-exceptions，**没有** SUPPORT_LONGJMP
+```
+
+⚠️ **`-DLLVM_ENABLE_RTTI=OFF` 不能给**：`HandleLLVMOptions.cmake:1244` 有硬判据
+「`LLVM_ENABLE_EH=ON` 时 RTTI 必须 ON」（反过来 `EH=OFF` 配 `RTTI=OFF` 本轮也撞到了
+一次 FATAL）。RTTI 改在**编译器层**用 `-fno-rtti` 关 —— 那才是进代码生成的那个开关。
+
+⚠️ **执行诚实交代（已解决）**：`ninja` 第一次跑这个配置时，链接行里带的是
+`-sSUPPORT_LONGJMP=wasm` ⇒ 失败。把该旗标去掉后**重跑 `m1/exp-run.sh lean_nosjlj`，
+ninja 一把过**，上表数字即来自那一趟（`m1/evidence/opt-lean_nosjlj.log`，
+配置已改对，别人复跑得到同样的值）。**失败那一次**的报错原文附在同一份日志末尾 ——
+它是翻案 R-008 的证据，故意留着。
+
+⚠️ **一个顺手修掉的量测缺陷**：`gzip -9 -c <file>` 会把**文件名**写进 gzip 头，
+于是"同一份字节流"在两条路径下量出的 gzip 值不同（实测 17,317,088 vs 17,317,077）。
+`m1/exp-build.sh` 现在用 `gzip -9 -nc`（`--no-name`），量的是内容本身。
+
+同一族还有第二个坑：**Python 的 `gzip.compress` 与 GNU `gzip -9` 也不同值**
+（同一份 48,069,274 B 实测：python 17,308,255 / GNU `-n` 17,170,777）。
+两者都"对"，但**混用就是两个口径**。本表的 gzip 一律以 `m1/exp-build.sh` 的
+GNU `-9 -nc` 为准。
+
+`m1/build-clang-wasm.sh` 里基线那两行仍是 `gzip -9 -c`（**未改** —— 交接单要求
+基线脚本行为不动）。它量的是固定 basename，所以**复跑仍一致**，但与本表口径不统一：
+拿它和 `[[anchor_clang_wasm_gzip]]` 直接相减会**多算**几个字节。要比 gzip 就都用 `-nc`。
 
 
 
@@ -305,8 +408,14 @@ M1_LLD_BIN=m1/build-lld/bin M1_LLD_JS=lld-wasm-only.js \
 
 ## 8. 待办（交给下一轮）
 
-1. 试 `-sSUPPORT_LONGJMP=wasm` + `-mllvm -wasm-enable-sjlj`，看能不能把
-   `-fno-exceptions` 这条打通（§5.2；这是**最该试的下一条命令**，成本一次全量编译）。
-2. 若第 1 条通了，量"关异常"的真实收益，再决定 15 MB 预算要不要改。
-3. `anchor` 的 `clang.js` 胶水（75,755 B）本轮没优化；如果要抠首拉，胶水也是几十 KB 量级。
-4. 分片懒加载（交接单实验 F）仍未评估。
+1. **让 `lean_nosjlj` 由 ninja 一把跑通**（配置已改对，见 §5.2.2 的 flag 全文）——
+   **已完成**（重跑 `m1/exp-run.sh lean_nosjlj`，ninja 一把过，值不变）。
+   剩下的是把 `m1/build-clang-wasm.sh` 的 gzip 也换成 `-nc`，统一口径。
+2. **15 MB 预算的处置**：已把问题升到 `to-questionnaire-clang-wasm-m1.md` 的 C0。
+   本轮把它的三个选项都量化了，**结论是"按现在的功能集合，15 MB 不成立"**。
+3. **新的方向（本轮之后才看清）**：三轮实验合计只拿到 19%。要再往下走，
+   按 §5.1 的体积分布（`code` 占 89.4%、无 debug 段可剥），**只能动功能集合**：
+   例如只支持 C（丢掉整个 C++ 前端 —— `libclangSema` 27 MB + `libclangAST` 25 MB
+   是所有库里的前两名）或只支持编译不支持链接。
+4. `clang.js` 胶水（75,755 B）没优化；若抠首拉，胶水也是几十 KB 量级。
+5. 分片懒加载（交接单实验 F）仍未评估 —— 但它**改的是首拉体积，不是总量**。

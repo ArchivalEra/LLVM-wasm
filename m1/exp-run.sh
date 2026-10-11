@@ -54,22 +54,33 @@ case "$NAME" in
       "-Os -fno-exceptions -fno-rtti -fno-unwind-tables -fno-asynchronous-unwind-tables -DLLVM_ENABLE_EH=OFF -DLLVM_ENABLE_RTTI=OFF" \
       -DLLVM_ENABLE_EH=OFF -DLLVM_ENABLE_RTTI=OFF ;;
 
-  # lean 的**修正版**：去掉矛盾的 `-fwasm-exceptions`，显式 `-sSUPPORT_LONGJMP=wasm`，
-  # 并把 emcc 从 "legacy SJLJ" 世界拉回来（这是 emscripten_longjmp 的家）。
-  # 这一版才真正回答「关掉异常+RTTI 能省多少」。
+  # lean 的**修正版**：去掉矛盾的 `-fwasm-exceptions`，且**不要**设 SUPPORT_LONGJMP。
   #
-  # ⚠️ cmake 侧只能给 `-DLLVM_ENABLE_EH=OFF`，RTTI 必须留 ON：
-  #    HandleLLVMOptions.cmake 有硬判据「EH=ON 时 RTTI 必须 ON」，
-  #    给 `-DLLVM_ENABLE_RTTI=OFF` 会直接 FATAL（实测两次）。
-  #    RTTI 我们改在**编译器层**用 `-fno-rtti` 关（这才是进代码生成的那个开关）。
+  # ⚠️ 这里有个反直觉的机制，两轮 agent 都猜反过，以实测为准（证据见
+  #    m1/evidence/opt-lean_nosjlj.log 与 OPT-RESULTS.md §5.2）：
+  #
+  #    `-sSUPPORT_LONGJMP=wasm` 配上默认的 `WASM_LEGACY_EXCEPTIONS=true`，
+  #    会让 emcc 的 builtins 变体选择走到 `Exceptions.WASM_LEGACY`
+  #    （tools/system_libs.py:898 `get_default_variation`）⇒ 链接
+  #    `libclang_rt.builtins-legacysjlj`，而该变体**没有** `emscripten_longjmp`
+  #    （实测 `llvm-nm --defined-only`：只有 builtins / -mt / -ww 三个变体有）。
+  #
+  #    在 `-fno-exceptions` 下，`CrashRecoveryContext.cpp` 的 setjmp/longjmp
+  #    正好展开成 `emscripten_longjmp` ⇒ 缺符号。
+  #
+  #    所以正解是**不设** SUPPORT_LONGJMP，让它留在默认的 `Exceptions.EMSCRIPTEN`
+  #    ⇒ 选到 `libclang_rt.builtins.a`（有这个符号）。
+  #    加 `-sSUPPORT_LONGJMP=wasm` 是把情况弄坏，不是修好。
+  #
+  # cmake 侧只能给 `-DLLVM_ENABLE_EH=OFF`：RTTI 必须留 ON（HandleLLVMOptions.cmake
+  # 有硬判据「EH=ON 时 RTTI 必须 ON」），我们改在编译器层用 `-fno-rtti` 关。
   lean_nosjlj)
     run_lf clang MinSizeRel \
       "-Os -fno-exceptions -fno-rtti -fno-unwind-tables -fno-asynchronous-unwind-tables" \
       "-sWASM=1 -sALLOW_MEMORY_GROWTH=1 -sSTACK_SIZE=5242880 -sEXIT_RUNTIME=0 \
 -sINITIAL_MEMORY=268435456 -sFORCE_FILESYSTEM=1 -sMODULARIZE=1 \
 -sEXPORT_NAME=createToolChain \
--sEXPORTED_RUNTIME_METHODS=FS,callMain,ccall,cwrap,getValue,setValue \
--sSUPPORT_LONGJMP=wasm" \
+-sEXPORTED_RUNTIME_METHODS=FS,callMain,ccall,cwrap,getValue,setValue" \
       -DLLVM_ENABLE_EH=OFF ;;
 
   # 只关 RTTI（保留异常）：-fno-rtti 在 LLVM 侧由 LLVM_ENABLE_RTTI 支持，

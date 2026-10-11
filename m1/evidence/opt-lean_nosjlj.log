@@ -1,49 +1,41 @@
 ===== config=lean_nosjlj tools=clang build_type=MinSizeRel (custom link flags)
 # CXX_FLAGS: -Os -fno-exceptions -fno-rtti -fno-unwind-tables -fno-asynchronous-unwind-tables
-# LINK_FLAGS: -sWASM=1 -sALLOW_MEMORY_GROWTH=1 -sSTACK_SIZE=5242880 -sEXIT_RUNTIME=0 -sINITIAL_MEMORY=268435456 -sFORCE_FILESYSTEM=1 -sMODULARIZE=1 -sEXPORT_NAME=createToolChain -sEXPORTED_RUNTIME_METHODS=FS,callMain,ccall,cwrap,getValue,setValue -sSUPPORT_LONGJMP=wasm
+# LINK_FLAGS: -sWASM=1 -sALLOW_MEMORY_GROWTH=1 -sSTACK_SIZE=5242880 -sEXIT_RUNTIME=0 -sINITIAL_MEMORY=268435456 -sFORCE_FILESYSTEM=1 -sMODULARIZE=1 -sEXPORT_NAME=createToolChain -sEXPORTED_RUNTIME_METHODS=FS,callMain,ccall,cwrap,getValue,setValue
 == ccache: ccache version 4.14.1 dir=/mnt/hdd/zcode-projects/LLVM-wasm/toolchain/ccache (via CMAKE_*_COMPILER_LAUNCHER)
 == exp[lean_nosjlj]: cmake configure (clang, build_type=MinSizeRel) ==
    configure OK; ninja -j22 clang
-FATAL: ninja 失败
-[3091/3125] Building CXX object lib/Target/WebAssembly/CMakeFiles/LLVMWebAssemblyCodeGen.dir/WebAssemblySortRegion.cpp.o
-[3092/3125] Linking CXX static library lib/libclangExtractAPI.a
-[3093/3125] Linking CXX static library lib/libclangRewriteFrontend.a
-[3094/3125] Building CXX object lib/Target/WebAssembly/CMakeFiles/LLVMWebAssemblyCodeGen.dir/WebAssemblyRegNumbering.cpp.o
-[3095/3125] Building CXX object lib/Target/WebAssembly/CMakeFiles/LLVMWebAssemblyCodeGen.dir/WebAssemblyLowerEmscriptenEHSjLj.cpp.o
-[3096/3125] Linking CXX static library lib/libclangDriver.a
-[3097/3125] Building CXX object lib/Target/WebAssembly/CMakeFiles/LLVMWebAssemblyCodeGen.dir/WebAssemblySubtarget.cpp.o
-[3098/3125] Building CXX object tools/clang/lib/CodeGen/CMakeFiles/obj.clangCodeGen.dir/CGOpenMPRuntime.cpp.o
-[3099/3125] Building CXX object lib/Target/WebAssembly/CMakeFiles/LLVMWebAssemblyCodeGen.dir/WebAssemblyReplacePhysRegs.cpp.o
-[3100/3125] Building CXX object lib/Target/WebAssembly/CMakeFiles/LLVMWebAssemblyCodeGen.dir/WebAssemblyISelLowering.cpp.o
-[3101/3125] Building CXX object tools/clang/tools/driver/CMakeFiles/clang.dir/clang-driver.cpp.o
-[3102/3125] Building CXX object lib/Target/WebAssembly/CMakeFiles/LLVMWebAssemblyCodeGen.dir/WebAssemblyMemIntrinsicResults.cpp.o
-[3103/3125] Building CXX object lib/Target/WebAssembly/CMakeFiles/LLVMWebAssemblyCodeGen.dir/WebAssemblyRegStackify.cpp.o
-[3104/3125] Building CXX object lib/Target/WebAssembly/CMakeFiles/LLVMWebAssemblyCodeGen.dir/WebAssemblyRegColoring.cpp.o
-[3105/3125] Building CXX object tools/clang/lib/CodeGen/CMakeFiles/obj.clangCodeGen.dir/TargetBuiltins/ARM.cpp.o
-[3106/3125] Building CXX object lib/Target/WebAssembly/CMakeFiles/LLVMWebAssemblyCodeGen.dir/WebAssemblyUtilities.cpp.o
-[3107/3125] Building CXX object lib/Target/WebAssembly/Disassembler/CMakeFiles/LLVMWebAssemblyDisassembler.dir/WebAssemblyDisassembler.cpp.o
-[3108/3125] Linking CXX static library lib/libLLVMWebAssemblyDisassembler.a
-[3109/3125] Building CXX object tools/clang/lib/CodeGen/CMakeFiles/obj.clangCodeGen.dir/TargetBuiltins/RISCV.cpp.o
-[3110/3125] Building CXX object lib/Target/WebAssembly/AsmParser/CMakeFiles/LLVMWebAssemblyAsmParser.dir/WebAssemblyAsmTypeCheck.cpp.o
-[3111/3125] Building CXX object tools/clang/tools/driver/CMakeFiles/clang.dir/cc1gen_reproducer_main.cpp.o
-[3112/3125] Building CXX object tools/clang/tools/driver/CMakeFiles/clang.dir/cc1as_main.cpp.o
-[3113/3125] Building CXX object tools/clang/tools/driver/CMakeFiles/clang.dir/driver.cpp.o
-[3114/3125] Building CXX object lib/Target/WebAssembly/AsmParser/CMakeFiles/LLVMWebAssemblyAsmParser.dir/WebAssemblyAsmParser.cpp.o
-[3115/3125] Linking CXX static library lib/libLLVMWebAssemblyAsmParser.a
-[3116/3125] Building CXX object lib/Target/WebAssembly/CMakeFiles/LLVMWebAssemblyCodeGen.dir/WebAssemblyTargetTransformInfo.cpp.o
-[3117/3125] Building CXX object tools/clang/tools/driver/CMakeFiles/clang.dir/cc1_main.cpp.o
-[3118/3125] Building CXX object lib/Target/WebAssembly/CMakeFiles/LLVMWebAssemblyCodeGen.dir/WebAssemblyTargetMachine.cpp.o
-[3119/3125] Linking CXX static library lib/libLLVMWebAssemblyCodeGen.a
-[3120/3125] Building CXX object tools/clang/lib/FrontendTool/CMakeFiles/obj.clangFrontendTool.dir/ExecuteCompilerInvocation.cpp.o
-[3121/3125] Building CXX object tools/clang/lib/CodeGen/CMakeFiles/obj.clangCodeGen.dir/CodeGenModule.cpp.o
-[3122/3125] Linking CXX static library lib/libclangCodeGen.a
-[3123/3125] Linking CXX static library lib/libclangFrontendTool.a
-[3124/3125] Linking CXX executable bin/clang.js-24
-FAILED: [code=1] bin/clang.js-24 
-: && /mnt/hdd/zcode-projects/LLVM-wasm/toolchain/emsdk/upstream/emscripten/em++ -Os -fno-exceptions -fno-rtti -fno-unwind-tables -fno-asynchronous-unwind-tables -fPIC -fvisibility-inlines-hidden -Werror=date-time -Werror=unguarded-availability-new -Wall -Wextra -Wno-unused-parameter -Wwrite-strings -Wcast-qual -Wmissing-field-initializers -pedantic -Wno-long-long -Wc++98-compat-extra-semi -Wimplicit-fallthrough -Wcovered-switch-default -Wno-noexcept-type -Wnon-virtual-dtor -Wdelete-non-virtual-dtor -Wsuggest-override -Wstring-conversion -Wno-pass-failed -Wmisleading-indentation -Wctad-maybe-unsupported -fdiagnostics-color -ffunction-sections -fdata-sections -Xclang -fno-pch-timestamp -fno-common -Wno-nested-anon-types -Os -DNDEBUG -sWASM=1 -sALLOW_MEMORY_GROWTH=1 -sSTACK_SIZE=5242880 -sEXIT_RUNTIME=0 -sINITIAL_MEMORY=268435456 -sFORCE_FILESYSTEM=1 -sMODULARIZE=1 -sEXPORT_NAME=createToolChain -sEXPORTED_RUNTIME_METHODS=FS,callMain,ccall,cwrap,getValue,setValue -sSUPPORT_LONGJMP=wasm -Wl,--color-diagnostics tools/clang/tools/driver/CMakeFiles/clang.dir/driver.cpp.o tools/clang/tools/driver/CMakeFiles/clang.dir/cc1_main.cpp.o tools/clang/tools/driver/CMakeFiles/clang.dir/cc1as_main.cpp.o tools/clang/tools/driver/CMakeFiles/clang.dir/cc1gen_reproducer_main.cpp.o tools/clang/tools/driver/CMakeFiles/clang.dir/clang-driver.cpp.o -o bin/clang.js-24  lib/libLLVMWebAssemblyCodeGen.a  lib/libLLVMWebAssemblyAsmParser.a  lib/libLLVMWebAssemblyDesc.a  lib/libLLVMWebAssemblyDisassembler.a  lib/libLLVMWebAssemblyInfo.a  lib/libLLVMWebAssemblyUtils.a  lib/libLLVMAnalysis.a  lib/libLLVMCodeGen.a  lib/libLLVMCore.a  lib/libLLVMipo.a  lib/libLLVMAggressiveInstCombine.a  lib/libLLVMInstCombine.a  lib/libLLVMInstrumentation.a  lib/libLLVMMC.a  lib/libLLVMMCParser.a  lib/libLLVMObjCARCOpts.a  lib/libLLVMOption.a  lib/libLLVMScalarOpts.a  lib/libLLVMSupport.a  lib/libLLVMTargetParser.a  lib/libLLVMTransformUtils.a  lib/libLLVMVectorize.a  lib/libclangBasic.a  lib/libclangCodeGen.a  lib/libclangDriver.a  lib/libclangFrontend.a  lib/libclangFrontendTool.a  lib/libclangOptions.a  lib/libclangSerialization.a  lib/libLLVMMCDisassembler.a  lib/libclangCodeGenUtils.a  lib/libLLVMABI.a  lib/libLLVMCoverage.a  lib/libLLVMFrontendDriver.a  lib/libLLVMLTO.a  lib/libLLVMPasses.a  lib/libLLVMAsmPrinter.a  lib/libLLVMGlobalISel.a  lib/libLLVMSelectionDAG.a  lib/libLLVMCodeGenTypes.a  lib/libLLVMCoroutines.a  lib/libLLVMSandboxIR.a  lib/libLLVMHipStdPar.a  lib/libLLVMIRPrinter.a  lib/libLLVMCFGuard.a  lib/libLLVMTarget.a  lib/libLLVMCGData.a  lib/libLLVMBitWriter.a  lib/libLLVMLinker.a  lib/libLLVMExtensions.a  lib/libclangDependencyScanning.a  lib/libLLVMWindowsDriver.a  lib/libclangScalableStaticAnalysisFrontend.a  lib/libclangScalableStaticAnalysisAnalyses.a  lib/libclangScalableStaticAnalysisSourceTransformation.a  lib/libclangScalableStaticAnalysisCore.a  lib/libclangToolingCore.a  lib/libclangExtractAPI.a  lib/libclangUnifiedSymbolResolution.a  lib/libclangInstallAPI.a  lib/libLLVMTextAPIBinaryReader.a  lib/libclangRewriteFrontend.a  lib/libLLVMPlugins.a  lib/libclangParse.a  lib/libclangSema.a  lib/libclangAPINotes.a  lib/libclangAnalysisLifetimeSafety.a  lib/libclangAnalysis.a  lib/libclangASTMatchers.a  lib/libclangSupport.a  lib/libclangEdit.a  lib/libclangAST.a  lib/libclangRewrite.a  lib/libclangLex.a  lib/libLLVMFrontendOpenMP.a  lib/libLLVMFrontendOffloading.a  lib/libLLVMObjectYAML.a  lib/libLLVMFrontendAtomic.a  lib/libLLVMFrontendHLSL.a  lib/libLLVMProfileData.a  lib/libLLVMSymbolize.a  lib/libLLVMDebugInfoGSYM.a  lib/libLLVMDebugInfoDWARF.a  lib/libLLVMDebugInfoPDB.a  lib/libLLVMObject.a  lib/libLLVMDebugInfoDWARFLowLevel.a  lib/libLLVMIRReader.a  lib/libLLVMBitReader.a  lib/libLLVMAsmParser.a  lib/libLLVMTextAPI.a  lib/libLLVMDebugInfoCodeView.a  lib/libLLVMDebugInfoMSF.a  lib/libLLVMDebugInfoBTF.a  lib/libLLVMBinaryFormat.a  lib/libLLVMRemarks.a  lib/libLLVMBitstreamReader.a  lib/libLLVMFrontendDirective.a  lib/libLLVMDemangle.a  -lrt  -lm && :
-wasm-ld: error: lib/libLLVMSupport.a(CrashRecoveryContext.cpp.o): undefined symbol: emscripten_longjmp
-wasm-ld: error: lib/libLLVMSupport.a(CrashRecoveryContext.cpp.o): undefined symbol: emscripten_longjmp
-em++: error: '/mnt/hdd/zcode-projects/LLVM-wasm/toolchain/emsdk/upstream/bin/wasm-ld -o bin/clang.wasm /tmp/tmpprr3rbc2libemscripten_js_symbols.so -Bstatic --strip-debug --export=_emscripten_stack_alloc --export=__wasm_call_ctors --export=_emscripten_stack_restore --export=emscripten_stack_get_current --export-if-defined=__start_em_asm --export-if-defined=__stop_em_asm --export-if-defined=__start_em_lib_deps --export-if-defined=__stop_em_lib_deps --export-if-defined=__start_em_js --export-if-defined=__stop_em_js --export-if-defined=main --export-if-defined=__main_argc_argv --export-table -z stack-size=5242880 --max-memory=2147483648 --initial-memory=268435456 --no-entry --no-stack-first --table-base=1 --global-base=1024 --color-diagnostics tools/clang/tools/driver/CMakeFiles/clang.dir/driver.cpp.o tools/clang/tools/driver/CMakeFiles/clang.dir/cc1_main.cpp.o tools/clang/tools/driver/CMakeFiles/clang.dir/cc1as_main.cpp.o tools/clang/tools/driver/CMakeFiles/clang.dir/cc1gen_reproducer_main.cpp.o tools/clang/tools/driver/CMakeFiles/clang.dir/clang-driver.cpp.o lib/libLLVMWebAssemblyCodeGen.a lib/libLLVMWebAssemblyAsmParser.a lib/libLLVMWebAssemblyDesc.a lib/libLLVMWebAssemblyDisassembler.a lib/libLLVMWebAssemblyInfo.a lib/libLLVMWebAssemblyUtils.a lib/libLLVMAnalysis.a lib/libLLVMCodeGen.a lib/libLLVMCore.a lib/libLLVMipo.a lib/libLLVMAggressiveInstCombine.a lib/libLLVMInstCombine.a lib/libLLVMInstrumentation.a lib/libLLVMMC.a lib/libLLVMMCParser.a lib/libLLVMObjCARCOpts.a lib/libLLVMOption.a lib/libLLVMScalarOpts.a lib/libLLVMSupport.a lib/libLLVMTargetParser.a lib/libLLVMTransformUtils.a lib/libLLVMVectorize.a lib/libclangBasic.a lib/libclangCodeGen.a lib/libclangDriver.a lib/libclangFrontend.a lib/libclangFrontendTool.a lib/libclangOptions.a lib/libclangSerialization.a lib/libLLVMMCDisassembler.a lib/libclangCodeGenUtils.a lib/libLLVMABI.a lib/libLLVMCoverage.a lib/libLLVMFrontendDriver.a lib/libLLVMLTO.a lib/libLLVMPasses.a lib/libLLVMAsmPrinter.a lib/libLLVMGlobalISel.a lib/libLLVMSelectionDAG.a lib/libLLVMCodeGenTypes.a lib/libLLVMCoroutines.a lib/libLLVMSandboxIR.a lib/libLLVMHipStdPar.a lib/libLLVMIRPrinter.a lib/libLLVMCFGuard.a lib/libLLVMTarget.a lib/libLLVMCGData.a lib/libLLVMBitWriter.a lib/libLLVMLinker.a lib/libLLVMExtensions.a lib/libclangDependencyScanning.a lib/libLLVMWindowsDriver.a lib/libclangScalableStaticAnalysisFrontend.a lib/libclangScalableStaticAnalysisAnalyses.a lib/libclangScalableStaticAnalysisSourceTransformation.a lib/libclangScalableStaticAnalysisCore.a lib/libclangToolingCore.a lib/libclangExtractAPI.a lib/libclangUnifiedSymbolResolution.a lib/libclangInstallAPI.a lib/libLLVMTextAPIBinaryReader.a lib/libclangRewriteFrontend.a lib/libLLVMPlugins.a lib/libclangParse.a lib/libclangSema.a lib/libclangAPINotes.a lib/libclangAnalysisLifetimeSafety.a lib/libclangAnalysis.a lib/libclangASTMatchers.a lib/libclangSupport.a lib/libclangEdit.a lib/libclangAST.a lib/libclangRewrite.a lib/libclangLex.a lib/libLLVMFrontendOpenMP.a lib/libLLVMFrontendOffloading.a lib/libLLVMObjectYAML.a lib/libLLVMFrontendAtomic.a lib/libLLVMFrontendHLSL.a lib/libLLVMProfileData.a lib/libLLVMSymbolize.a lib/libLLVMDebugInfoGSYM.a lib/libLLVMDebugInfoDWARF.a lib/libLLVMDebugInfoPDB.a lib/libLLVMObject.a lib/libLLVMDebugInfoDWARFLowLevel.a lib/libLLVMIRReader.a lib/libLLVMBitReader.a lib/libLLVMAsmParser.a lib/libLLVMTextAPI.a lib/libLLVMDebugInfoCodeView.a lib/libLLVMDebugInfoMSF.a lib/libLLVMDebugInfoBTF.a lib/libLLVMBinaryFormat.a lib/libLLVMRemarks.a lib/libLLVMBitstreamReader.a lib/libLLVMFrontendDirective.a lib/libLLVMDemangle.a -L/mnt/hdd/zcode-projects/LLVM-wasm/toolchain/emsdk/upstream/emscripten/../emscripten/cache/sysroot/lib/wasm32-emscripten -L/mnt/hdd/zcode-projects/LLVM-wasm/toolchain/emsdk/upstream/emscripten/src/lib -lGL-getprocaddr -lal -lhtml5 -lstubs -lnoexit -lc -ldlmalloc -lclang_rt.builtins-legacysjlj -lc++-noexcept -lc++abi-noexcept -lsockets -mllvm -combiner-global-alias-analysis=false -mllvm -wasm-enable-sjlj -mllvm -wasm-use-legacy-eh -mllvm -disable-lsr -mllvm -exception-model=wasm' failed (returned 1)
-ninja: build stopped: subcommand failed.
-# config lean_nosjlj  (2026-10-10T23:06:30+08:00)
-# build_type/obj dir: /mnt/hdd/zcode-projects/LLVM-wasm/m1/build-exp-lean_nosjlj
+   build OK in 81s
+-- artifacts (/mnt/hdd/zcode-projects/LLVM-wasm/m1/build-exp-lean_nosjlj)
+ARTIFACT lean_nosjlj_clang_js 76240
+ARTIFACT lean_nosjlj_clang_wasm 48069274
+ARTIFACT lean_nosjlj_clang_wasm_gzip 17317077
+ARTIFACT lean_nosjlj_clang_wasm_brotli 12614129
+-- ccache stats
+Cacheable calls:    492 / 8061 ( 6.10%)
+  Hits:              10 /  492 ( 2.03%)
+  Misses:           482 /  492 (97.97%)
+Local storage:
+  Cache size (GB):  0.0 / 60.0 ( 0.03%)
+  Hits:              10 /  492 ( 2.03%)
+  Misses:           482 /  492 (97.97%)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 附：这个配置的**失败那一次**（必须留着 —— 它是翻案 R-008 的证据）
+#
+# ninja 第一次跑这个配置时，链接行里带了 `-sSUPPORT_LONGJMP=wasm`，结果是：
+#   wasm-ld: error: lib/libLLVMSupport.a(CrashRecoveryContext.cpp.o):
+#                    undefined symbol: emscripten_longjmp
+#   链接行里 emcc 自己选的是 -lclang_rt.builtins-legacysjlj（该变体**没有**这个符号）
+#
+# 去掉那个旗标后（其余完全不变）链接通过 —— 上面那组 ARTIFACT 就是去掉后的结果。
+# 机制：tools/system_libs.py:898 的 get_default_variation —— SUPPORT_LONGJMP=wasm
+# 配上默认的 WASM_LEGACY_EXCEPTIONS=true 会落到 Exceptions.WASM_LEGACY，
+# 而该分支的 builtins 变体不含 emscripten_longjmp；不设它则落到
+# Exceptions.EMSCRIPTEN，拿到有该符号的 libclang_rt.builtins.a。
+#
+# 复现性：本文件那组值来自**清掉产物后重跑**（rm bin/clang.{wasm,js,js-24} 再
+# `EXP_JOBS=22 bash m1/exp-run.sh lean_nosjlj`），与上一趟逐字节相同。
+#
+# 完整记录：m1/OPT-RESULTS.md §5.2.2、m1/OPT-REVIEW.md §5、retractions.json R-008
+# 复跑：EXP_JOBS=22 bash m1/exp-run.sh lean_nosjlj
+# ─────────────────────────────────────────────────────────────────────────────

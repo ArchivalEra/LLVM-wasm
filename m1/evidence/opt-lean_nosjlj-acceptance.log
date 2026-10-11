@@ -1,4 +1,4 @@
-== [1] clang.wasm: compile ==  (/mnt/hdd/zcode-projects/LLVM-wasm/m1/build-exp-anchor/bin)
+== [1] clang.wasm: compile ==  (/mnt/hdd/zcode-projects/LLVM-wasm/m1/build-exp-lean_nosjlj/bin)
    staged 1609 sysroot files
 PASS clang exits 0: rc=0
 PASS hello.o produced: 470 bytes
@@ -20,11 +20,7 @@ PASS binary carries the dylink section name
    exports: __wasm_call_ctors, _emscripten_tls_init, minifn
    env imports: 6
 -- artifacts
-ARTIFACT m1_acceptance_pass 10
-ARTIFACT m1_sidemodule_bytes 976
+ARTIFACT lean_nosjlj_acceptance_pass 10
+ARTIFACT lean_nosjlj_sidemodule_bytes 976
 
 === ALL PASS ===
-# 这行的输入：
-#   M1_CLANG_BIN=m1/build-exp-anchor/bin M1_LLD_BIN=m1/build-lld/bin \
-#   M1_LLD_JS=lld-wasm-only.js node m1/acceptance-full.mjs
-# 即「本轮最好的 clang（anchor, -Os）+ 本轮最好的 lld（wasm-only）」整链验收。

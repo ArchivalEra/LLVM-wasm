@@ -151,9 +151,17 @@ if (so) {
 // --------------------------------------------------- machine-readable summary
 // Same convention as the M0 runners: facts.py greps these, so the numbers have
 // one producer and no doc hand-copies them.
+//
+// M1_TAG namespaces the keys so one config's acceptance numbers cannot be
+// mistaken for another's. Defaults to `m1` = the baseline, so the original
+// ledger keys (`m1_acceptance_pass` / `m1_sidemodule_bytes`) keep their meaning.
+// A size experiment passes e.g. M1_TAG=lean_nosjlj and gets its own keys
+// (and its own log), which is what keeps two runs from silently overwriting
+// each other's evidence.
+const TAG = process.env.M1_TAG || 'm1';
 console.log('-- artifacts');
-console.log(`ARTIFACT m1_acceptance_pass ${passCount}`);
-if (so) console.log(`ARTIFACT m1_sidemodule_bytes ${so.length}`);
+console.log(`ARTIFACT ${TAG}_acceptance_pass ${passCount}`);
+if (so) console.log(`ARTIFACT ${TAG}_sidemodule_bytes ${so.length}`);
 
 console.log(`\n=== ${fails === 0 ? 'ALL PASS' : fails + ' FAILED'} ===`);
 process.exitCode = fails === 0 ? 0 : 1;

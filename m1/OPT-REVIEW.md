@@ -2,6 +2,12 @@
 
 > 复核人：LLVM-wasm 仓的上一轮 agent。**不是转述**——下面每条都是我自己跑出来的，
 > 与隔壁的日志分开。数字口径：本仓台账键 + 我现场量的值。
+>
+> **⚠️ 2026-10-10 追记（第三方复核了这份复核）**：本文件 §1.4 给出的"确切命令"
+> **是错的**，而且**方向恰好反了**。我建议加的 `-sSUPPORT_LONGJMP=wasm` 正是
+> **制造**那个链接失败的旗标。§1.2 的符号表是对的、§1.1 的旗标冲突观察也是对的，
+> 但我据此推出的修法错了。更正见文末 **§5**，实测证据在
+> `m1/evidence/opt-lean_nosjlj.log`（末尾附失败那一次的报错原文）与 `m1/OPT-RESULTS.md` §5.2.2。
 
 ## 0. 复核结论
 
@@ -16,6 +22,8 @@
 
 **一句话**：隔壁的交付质量高，数字可信，负结果也诚实。唯一要更正的是 §1 那条诊断——
 它把"旗标冲突"误判成了"必须改 LLVM 源码"。
+
+**但要连我的更正一起更正**：我 §1.4 给的修法也是错的（见文末 §5）。
 
 ---
 
@@ -131,3 +139,62 @@ for a in toolchain/emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten
     "$(toolchain/emsdk/upstream/bin/llvm-nm --defined-only $a 2>/dev/null | grep -c emscripten_longjmp)"
 done
 ```
+
+---
+
+## 5. 追记：我 §1.4 给的那条命令是错的（方向反了）
+
+**实测推翻了它。** 我建议的
+
+```
+-Os -fno-exceptions -fno-rtti -sSUPPORT_LONGJMP=wasm
+```
+
+跑出来的结果**仍然是同一个链接失败**（`emscripten_longjmp` undefined）。
+去掉 `-sSUPPORT_LONGJMP=wasm` 之后**才通过**：
+
+| 链接旗标 | emcc 选中的 builtins 变体 | 有 `emscripten_longjmp`？ | 结果 |
+|---|---|---|---|
+| 带 `-sSUPPORT_LONGJMP=wasm` | `libclang_rt.builtins-legacysjlj` | **无** | **失败** |
+| **不设** `SUPPORT_LONGJMP` | `libclang_rt.builtins` | **有** | **成功（48,069,274 B raw）** |
+
+### 5.1 我错在哪
+
+我在 §1.2 正确地测出"只有 `builtins` / `-mt` / `-ww` 三个变体有那个符号"，
+也正确地看到"那次链接选的是 `-legacysjlj`"。**但我把因果搞反了**：
+我以为 `-legacysjlj` 是"`-fno-exceptions` 带来的默认"，于是想用
+`SUPPORT_LONGJMP=wasm` 把它"掰"到 wasm-sjlj 那一支（`-wasmsjlj`）——
+而**那一支同样没有这个符号**（我自己的 §1.2 表里就写着"无"，我读漏了）。
+
+更根本的是：`-sSUPPORT_LONGJMP=wasm` 正是 emcc 用来**进入** legacy/wasm-SJLJ
+分支的开关（`settings.WASM_LEGACY_EXCEPTIONS` 默认 `true` ⇒ 落到 `-legacysjlj`）。
+**不设它**时走的是 `Exceptions.EMSCRIPTEN` 默认支，才拿到有符号的 `builtins.a`。
+
+机制原文（`tools/system_libs.py:898` `get_default_variation`）：
+
+```python
+if settings.SUPPORT_LONGJMP == 'wasm':
+    if settings.WASM_LEGACY_EXCEPTIONS:   # 默认 true
+        eh_mode = Exceptions.WASM_LEGACY   # -> '-legacysjlj'（无 emscripten_longjmp）
+    else:
+        eh_mode = Exceptions.WASM          # -> '-wasmsjlj'（也无）
+else:
+    eh_mode = Exceptions.EMSCRIPTEN        # -> 'builtins.a'（有）
+```
+
+### 5.2 教训（写给下一个 agent）
+
+我 §1.3 那个"独立验证"是**假阳性**：我拿一个只调用 `emscripten_longjmp` 声明的
+最小夹具去试，它能过，我就以为找到了正解。但那个夹具**没有 LLVM 的
+`CrashRecoveryContext`**，走的 builtins 选择路径和真链接不一样 ——
+**夹具过了不等于真目标过了**。这正是本仓最恨的「仪器量的不是想量的」家族：
+我用一个不能代表目标的探针，给真目标开了一条错药方。
+
+**判据**：任何"根因诊断"要成立，必须在**真目标**上复现修复前后两种结果，
+而不是在最小夹具上。我这次做到了前半（真目标的失败），没做到后半（真目标的成功）。
+
+### 5.3 结果
+
+打通后的收益是 **−5.2%**（clang brotli 13,301,149 → 12,614,129），
+比隔壁原本的乐观预估（10–20%）小。**新最好组合 21.11 MB，仍超 15 MB 预算 41%。**
+完整数字与 flag 见 `m1/OPT-RESULTS.md` §5.2.1 / §5.2.2。

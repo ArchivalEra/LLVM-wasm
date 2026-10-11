@@ -53,6 +53,20 @@
       "why": "写 handoff 时我把 `m1/build-clang-wasm.sh` 里的 `-DCMAKE_C_FLAGS=\"-O1\"` 当成了实际优化档，并据此论证「体积不在可被 Binaryen 消掉的冗余里」。**两处都错**：(1) 基线实际是 `-O3` —— `CMAKE_BUILD_TYPE=Release` 会在 `-O1` 之后追加 `-O3 -DNDEBUG`，而 emcc 认**最后一个** `-O`（实测 `ninja -t commands` 里两个旗标同时在）；(2) 因此那条论证的依据（「wasm-opt 只省 36 KB」）的真实原因是**链接期 binaryen 已经按 -O3 跑过一遍**，不是在它输出上再跑一遍的结果。结论碰巧对、理由是错的 —— 这类必须记，否则下一个 agent 会拿错误理由去推别的结论。由隔壁在 OPT-RESULTS.md §0 抓出。",
       "evidence": "ninja -C m1/build-clang -t commands tools/clang/lib/Basic/CMakeFiles/obj.clangBasic.dir/Version.cpp.o | grep -oE '\\-O[0-9s]+'",
       "fixed_in": "m1/OPT-REVIEW.md §2；m1/OPT-RESULTS.md §0（隔壁的原始发现）"
+    },
+    {
+      "id": "R-008",
+      "text": "打通 -fno-exceptions 要加 -sSUPPORT_LONGJMP=wasm（或需要改 LLVM 源码）",
+      "why": "同一个坑上**两轮 agent 各错一次、方向相反**，所以记一条：(1) 第一轮说「卡在 LLVM 自己的 CrashRecoveryContext，需要改源码」—— 错，那是纯旗标问题；(2) 第二轮复核把根因修正为「旗标冲突 + builtins 变体选错」（**对**），但给出的修法是加 `-sSUPPORT_LONGJMP=wasm` —— **这一条恰是制造故障的开关**。实测：带它 ⇒ emcc 落到 `Exceptions.WASM_LEGACY`（`settings.WASM_LEGACY_EXCEPTIONS` 默认 true）⇒ 链 `libclang_rt.builtins-legacysjlj`（无 `emscripten_longjmp`）⇒ 失败；**不设**它 ⇒ 落到 `Exceptions.EMSCRIPTEN` ⇒ 链 `libclang_rt.builtins.a`（有该符号）⇒ **成功**（48,069,274 B raw、brotli 12,614,129、验收 10 PASS）。机制在 `tools/system_libs.py:898` 的 `get_default_variation`。第二轮之所以错，是它的「独立验证」用了只声明 `emscripten_longjmp` 的最小夹具 —— 夹具里没有 `CrashRecoveryContext`，走的 builtins 选择路径与真目标不同 ⇒ **夹具过了不等于真目标过了**（本仓「仪器量的不是想量的」家族的又一例）。",
+      "evidence": "EXP_JOBS=22 bash m1/exp-run.sh lean_nosjlj（失败：wasm-ld: undefined symbol: emscripten_longjmp）；去掉 -sSUPPORT_LONGJMP=wasm 后重跑 m1/exp-run.sh lean_nosjlj，ninja 一把过（成功，48069274 B / brotli 12614129）。两趟记录都在 m1/evidence/opt-lean_nosjlj.log（失败那次的报错原文附在文件末尾）",
+      "fixed_in": "m1/OPT-RESULTS.md §5.2.2（含正确 flag 全文）；m1/OPT-REVIEW.md §5（对复核的再更正）；m1/exp-run.sh 的 lean_nosjlj 配置"
+    },
+    {
+      "id": "R-009",
+      "text": "gzip 体积是一个只取决于字节流的量（`gzip -9 -c` 就够）",
+      "why": "**不成立**：GNU `gzip -9 -c` 会把**输入文件名**写进 gzip 头，于是同一份字节流换个路径/文件名就量出不同的值（实测同一个 48,069,274 B 的 wasm：在 A 路径 17,317,088、换到 B 路径 17,317,077，差的就是名字长度）。这把「体积」这个本该是内容属性的量，变成了**量它的路径的函数** ⇒ 复跑必然对不上，且对不上时看不出是谁错。同一个量还有第三个值：Python 的 `gzip.compress(...,9)` 给 17,308,255 —— 与 GNU `-9 -n` 的 17,170,777 差 137 KB。两者都「对」，但**混用就是两个口径**（本仓台账里 `m1_clang_wasm_gzip` 出自 GNU `-9 -c`，而我补的 `lean_nosjlj_clang_wasm_gzip` 最初混进过 python 的值，是这次发现它的起因）。修法：一律 `gzip -9 -nc`（`--no-name`：去掉文件名与时间戳），并只用一种工具。",
+      "evidence": "gzip -9 -c <f> | wc -c  → 17317088；gzip -9 -nc <f> | wc -c → 17317077；python3 -c 'import gzip;print(len(gzip.compress(open(f,\"rb\").read(),9)))' → 17308255（三者同一份文件）",
+      "fixed_in": "m1/exp-build.sh 的 measure()（改用 -nc，并写明原因）；m1/OPT-RESULTS.md §5.2.2 的口径说明；m1/build-clang-wasm.sh 的基线行**故意未改**（交接单要求基线行为不动，且它量的是固定 basename ⇒ 复跑一致；差异已写在报告里）"
     }
   ]
 }
