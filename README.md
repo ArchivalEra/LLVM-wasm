@@ -11,9 +11,9 @@ submodule 钉住（pin = commit，字节 = sha256）。需求书是**唯一一�
 - **M1**：`clang` 与 `lld` 已各自编成 wasm，并在 wasm 内部跑通完整链路 ——
   经内存 FS 编译 → 链接 → 产出 Side module ABI 正确的 `.so`。
 
-**体积**：一轮减重实验已做（`-Os` + lld 裁到 wasm-only），合计 brotli 从 26.06 MB 降到 21.80 MB，
-且两份更小的产物仍通过整链验收。**但仍超 SPEC §6 的 15 MB 预算 45%**，
-未打通的最强杠杆乐观估计也只到 17–19 MB ⇒ 预算目标本身待委托人定夺
+**体积**：三轮减重已做（`-Os` + lld 裁到 wasm-only + 关 C++ 异常/RTTI），
+合计 brotli 从 26.06 MB 降到 **21.11 MB（−19.0%）**，且产物仍通过整链验收。
+**但仍超 SPEC §6 的 15 MB 预算 41%** ⇒ 预算目标本身待委托人定夺
 （见 `to-questionnaire-clang-wasm-m1.md` 的 C0）。
 报告：[`m1/OPT-RESULTS.md`](m1/OPT-RESULTS.md)（实验）· [`m1/OPT-REVIEW.md`](m1/OPT-REVIEW.md)（独立复核）。
 
@@ -25,12 +25,17 @@ submodule 钉住（pin = commit，字节 = sha256）。需求书是**唯一一�
 
 还剩 **Worker 化**（§7.3，需真实浏览器）、分片懒加载（§6，等预算决定）。
 
-**体积优化实验（已完成一轮，结论已定）**：SPEC §6 的 15 MB 预算**到不了**。
-最有效的两根杠杆是 `MinSizeRel`（真 `-Os`）与「lld 只留 wasm 驱动」，
-两者合计把 brotli 从 26.06 MB 压到 21.80 MB（−16.4%），仍超预算 45%。
-配置→体积对照表、每条实验的复跑命令、以及"试过但没用"的清单都在
-[`m1/OPT-RESULTS.md`](m1/OPT-RESULTS.md)。**预算要不要改是委托人的决定**，
-本仓只给数字。
+**体积优化实验（三轮做完，到不了 15 MB）**：三根杠杆按收益排 ——
+`MinSizeRel`（真 `-Os`）−18.9%、lld 只留 wasm 驱动 −12.1%、关 C++ 异常/RTTI −5.2%；
+合计 26.06 → 21.11 MB，**仍超预算 41%**。配置→体积对照表、每条实验的复跑命令、
+以及"试过但没用"的清单都在 [`m1/OPT-RESULTS.md`](m1/OPT-RESULTS.md)。
+按体积分布（`code` 段占 89.4%、无 debug 段可剥）判断，**再往下只能动功能集合**
+（例如只支持 C —— 丢掉整个 C++ 前端）。**预算要不要改是委托人的决定**，本仓只给数字。
+
+> ⚠️ 两处反直觉的坑，复跑前值得先看：`-O1` 会被 `Release` 追加的 `-O3` 覆盖
+> （交接单据此判断错过一次）；`-sSUPPORT_LONGJMP=wasm` 是**制造**
+> `emscripten_longjmp` 链接失败的开关，不是修法。两条都记在
+> [`retractions.json`](retractions.json) 的 R-007 / R-008。
 
 ## 数字住在哪
 
