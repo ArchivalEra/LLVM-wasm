@@ -172,7 +172,7 @@ export class Toolchain {
   }
 
   /** Stage the sysroot into a module's FS, from whichever source was configured. */
-  _stageSysroot(fs, arch = 'wasm32') {
+  async _stageSysroot(fs, arch = 'wasm32') {
     if (this.bundle) {
       const files = this._bundle();
       // The tar is rooted at "sysroot/...", so install straight into /sysroot.
@@ -181,7 +181,7 @@ export class Toolchain {
       this._log(`[bundle] installed ${n} files into the memory FS`);
       return n;
     }
-    const { stage } = this._fs();
+    const { stage } = await this._fs();
     let n = stage(fs, join(this.sysroot, 'include'), '/sysroot/include');
     n += stage(fs, join(this.sysroot, `lib/${arch}-emscripten/pic`),
                `/sysroot/lib/${arch}-emscripten/pic`);
@@ -223,7 +223,7 @@ export class Toolchain {
     });
     // clang only reads headers; the arch-specific bit is pic/, which it never
     // touches. Stage headers once (from include/), which the bundle shares.
-    this._stageSysroot(this._clang.FS, 'wasm32');
+    await this._stageSysroot(this._clang.FS, 'wasm32');
     return this._clang;
   }
 
@@ -300,7 +300,7 @@ export class Toolchain {
     // ---- §4.2 link
     this._arch = target;
     const lld = await this.lld();
-    this._stageSysroot(lld.FS, this._arch || 'wasm32');
+    await this._stageSysroot(lld.FS, this._arch || 'wasm32');
     lld.FS.mkdirTree('/out');
     lld.FS.writeFile('/out/tu.o', obj);
 

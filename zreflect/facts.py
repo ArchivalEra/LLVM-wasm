@@ -405,6 +405,27 @@ def measure_facts():
                 "driver/evidence", label, replay=False,
                 witness=driver_inputs_cmd(), witness_expect=driver_inputs_fingerprint())
 
+    # ── M3：首拉体积（SPEC §6 的预算口径 —— 不是三资产总量，见 R-008）────────
+    for key, log, label in (
+            ("firstload_brotli", "opt-firstload.log",
+             "首拉 brotli 合计（clang.wasm+胶水+sysroot；SPEC §6 预算口径）"),
+            ("firstload_plus_lld_brotli", "opt-firstload.log",
+             "三资产总量（lld 懒加载不计入首拉）"),
+            ("firstload_clang_wasm_brotli", "opt-firstload.log",
+             "lean（关异常+RTTI）clang.wasm 的 brotli")):
+        val = _artifact_int(os.path.join(EV1, log), key)
+        if val is not None:
+            facts[key] = fact(
+                val, "grep -m1 '^ARTIFACT %s ' m1/evidence/%s | cut -d' ' -f3" % (key, log),
+                "m1/evidence", label, replay=False,
+                witness=m1_opt_inputs_cmd(), witness_expect=m1_opt_inputs_fingerprint())
+        val = _artifact_int(os.path.join(EVD, log), key)
+        if val is not None:
+            facts[key] = fact(
+                val, "grep -m1 '^ARTIFACT %s ' driver/evidence/%s | cut -d' ' -f3" % (key, log),
+                "driver/evidence", label, replay=False,
+                witness=driver_inputs_cmd(), witness_expect=driver_inputs_fingerprint())
+
     # ── M1 体积优化实验（隔壁一轮的产物，贵 ⇒ 挂见证）──────────────────────
     # 值来自 m1/evidence/opt-*.log 的 ARTIFACT 行。
     for key, log, label in (

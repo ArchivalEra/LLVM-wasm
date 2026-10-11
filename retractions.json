@@ -56,8 +56,8 @@
     },
     {
       "id": "R-008",
-      "text": "打通 -fno-exceptions 要加 -sSUPPORT_LONGJMP=wasm（或需要改 LLVM 源码）",
-      "why": "同一个坑上**两轮 agent 各错一次、方向相反**，所以记一条：(1) 第一轮说「卡在 LLVM 自己的 CrashRecoveryContext，需要改源码」—— 错，那是纯旗标问题；(2) 第二轮复核把根因修正为「旗标冲突 + builtins 变体选错」（**对**），但给出的修法是加 `-sSUPPORT_LONGJMP=wasm` —— **这一条恰是制造故障的开关**。实测：带它 ⇒ emcc 落到 `Exceptions.WASM_LEGACY`（`settings.WASM_LEGACY_EXCEPTIONS` 默认 true）⇒ 链 `libclang_rt.builtins-legacysjlj`（无 `emscripten_longjmp`）⇒ 失败；**不设**它 ⇒ 落到 `Exceptions.EMSCRIPTEN` ⇒ 链 `libclang_rt.builtins.a`（有该符号）⇒ **成功**（48,069,274 B raw、brotli 12,614,129、验收 10 PASS）。机制在 `tools/system_libs.py:898` 的 `get_default_variation`。第二轮之所以错，是它的「独立验证」用了只声明 `emscripten_longjmp` 的最小夹具 —— 夹具里没有 `CrashRecoveryContext`，走的 builtins 选择路径与真目标不同 ⇒ **夹具过了不等于真目标过了**（本仓「仪器量的不是想量的」家族的又一例）。",
+      "text": "「brotli ≤ 15 MB」大概不成立",
+      "why": "同一个坑上**两轮 agent 各错一次、方向相反**，所以记一条：(1) 第一轮说「卡在 LLVM 自己的 CrashRecoveryContext，需要改源码」—— 错，那是纯旗标问题；(2) 第二轮复核把根因修正为「旗标冲突 + builtins 变体选错」（**对**），但给出的修法是加 `-sSUPPORT_LONGJMP=wasm` —— **这一条恰是制造故障的开关**。实测：带它 ⇒ emcc 落到 `Exceptions.WASM_LEGACY`（`settings.WASM_LEGACY_EXCEPTIONS` 默认 true）⇒ 链 `libclang_rt.builtins-legacysjlj`（无 `emscripten_longjmp`）⇒ 失败；**不设**它 ⇒ 落到 `Exceptions.EMSCRIPTEN` ⇒ 链 `libclang_rt.builtins.a`（有该符号）⇒ **成功**（48,069,274 B raw、brotli 12,614,129、验收 10 PASS）。机制在 `tools/system_libs.py:898` 的 `get_default_variation`。第二轮之所以错，是它的「独立验证」用了只声明 `emscripten_longjmp` 的最小夹具 —— 夹具里没有 `CrashRecoveryContext`，走的 builtins 选择路径与真目标不同 ⇒ **夹具过了不等于真目标过了**（本仓「仪器量的不是想量的」家族的又一例）。 （本条的 `text` 取自我实际写下的措辞——OPT-REVIEW 写的是「15 MB 这个目标…大概不成立」、问卷 C0 标题是「「brotli ≤ 15 MB」大概不成立」；取后者，因为它是两处的公共子串。）",
       "evidence": "EXP_JOBS=22 bash m1/exp-run.sh lean_nosjlj（失败：wasm-ld: undefined symbol: emscripten_longjmp）；去掉 -sSUPPORT_LONGJMP=wasm 后重跑 m1/exp-run.sh lean_nosjlj，ninja 一把过（成功，48069274 B / brotli 12614129）。两趟记录都在 m1/evidence/opt-lean_nosjlj.log（失败那次的报错原文附在文件末尾）",
       "fixed_in": "m1/OPT-RESULTS.md §5.2.2（含正确 flag 全文）；m1/OPT-REVIEW.md §5（对复核的再更正）；m1/exp-run.sh 的 lean_nosjlj 配置"
     },
@@ -81,6 +81,20 @@
       "why": "**拍脑袋写的，实测证伪。** 我在 OPT-RESULTS §8 与问卷 C0 写过「唯一可能达标的方向是只支持 C——丢掉整个 C++ 前端（libclangSema 27 MB + libclangAST 25 MB 是所有库里的前两名）」。两处都错：(1) 那两个库**不是「C++ 前端」**，是 C/C++ **共用**的词法/语法/语义/常量求值——按链接器 map 逐符号归因，`SemaDecl.cpp` 一个共用文件里就有 383 处 `CXX`；(2) 把所有「非 C 语言特性」按文件名全砍光的**乐观上限**（模板/概念/协程 5.31% + OpenMP 4.02% + ObjC 1.19% + HLSL 1.02% + CUDA/HIP/SYCL 0.51% = CODE 段 12.05%），外推 brotli 也只到约 11.09 MB，加 lld 8.50 MB = **19.59 MB，仍超 15 MB**；且上游**没有**「只编 C」的构建开关（grep CLANG_ENABLE_C_ONLY 为空），要做只能改源码。这条错的性质与 R-007 同类：**用「哪个库最大」代替「哪个库能砍」**——库大不等于可去，共用库尤其如此。",
       "evidence": "python3 m1/exp-map-attrib.py --make-map /tmp/mapbuild/clang.map --build m1/build-exp-lean_nosjlj ⇒ CODE 段归因 + 非 C 特性 12.05% + 外推 19.59 MB",
       "fixed_in": "m1/OPT-RESULTS.md §5.3（新增实测表，替换原拍脑袋判断）；to-questionnaire-clang-wasm-m1.md C0 末尾的更正段；新增分析件 m1/exp-map-attrib.py"
+    },
+    {
+      "id": "R-008",
+      "text": "「brotli ≤ 15 MB」大概不成立",
+      "why": "我用**三资产总量**（clang+lld+sysroot = 22.80 MB brotli）去比 15 MB。但 SPEC §6 原文是「brotli 后 ≤ 15 MB（**首拉**），支持分片懒加载 + 浏览器缓存」——口径是**首拉**（只编不链 = clang.wasm + 胶水 + sysroot），lld 是首次链接时才拉的懒加载分片。按首拉算：**14.31 MB，达标**（余量 0.69 MB）。这条错判写进了 OPT-REVIEW、问卷 C0 和 STATE.md，会误导委托人去改一个不用改的预算。 （本条的 `text` 取自我实际写下的措辞——OPT-REVIEW 写的是「15 MB 这个目标…大概不成立」、问卷 C0 标题是「「brotli ≤ 15 MB」大概不成立」；取后者，因为它是两处的公共子串。）",
+      "evidence": "bash m1/exp-firstload.log（ARTIFACT firstload_brotli = 14308104）；SPEC §6 原文「（首拉），支持分片懒加载」",
+      "fixed_in": "m1/OPT-RESULTS.md（隔壁的口径更正）；STATE.md；to-questionnaire-clang-wasm-m1.md 的 C0 已撤"
+    },
+    {
+      "id": "R-009",
+      "text": "wasm64 需要第二套 clang/lld 构建产物",
+      "why": "我以为两档要像 sysroot 那样各建一套。实测：**编译器是多目标的** —— 同一个 clang.wasm 加 `--target=wasm64-unknown-emscripten` 就产出真 64 位对象（memory limits flags 带 0x04 位），同一个 lld.wasm 加 `-mwasm64` 就能链。两档只差 sysroot 的 `pic/` 子树（`crtbegin-mt.o` md5 各异），`include/` 共享。",
+      "evidence": "node driver/acceptance-wasm64.mjs（wasm32 976 B memory64=false / wasm64 994 B memory64=true，10 PASS）",
+      "fixed_in": "driver/RESULTS.md §4b；driver/acceptance-wasm64.mjs"
     }
   ]
 }
