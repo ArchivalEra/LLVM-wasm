@@ -11,11 +11,23 @@ submodule 钉住（pin = commit，字节 = sha256）。需求书是**唯一一�
 - **M1**：`clang` 与 `lld` 已各自编成 wasm，并在 wasm 内部跑通完整链路 ——
   经内存 FS 编译 → 链接 → 产出 Side module ABI 正确的 `.so`。
 
-**体积**：三轮减重已做（`-Os` + lld 裁到 wasm-only + 关 C++ 异常/RTTI），
-合计 brotli 从 26.06 MB 降到 **21.11 MB（−19.0%）**，且产物仍通过整链验收。
-**但仍超 SPEC §6 的 15 MB 预算 41%** ⇒ 预算目标本身待委托人定夺
-（见 `to-questionnaire-clang-wasm-m1.md` 的 C0）。
-报告：[`m1/OPT-RESULTS.md`](m1/OPT-RESULTS.md)（实验）· [`m1/OPT-REVIEW.md`](m1/OPT-REVIEW.md)（独立复核）。
+**体积**：三轮减重已做，三根杠杆按收益排 ——
+`MinSizeRel`（真 `-Os`）−18.9%、lld 只留 wasm 驱动 −12.1%、关 C++ 异常/RTTI −5.2%；
+三资产总量 brotli 26.06 → **22.80 MB**，产物仍通过整链验收。
+
+**按 SPEC §6 的字面口径（「≤ 15 MB（首拉）」），首拉 = 14.31 MB ⇒ 达标**
+（clang.wasm + clang.js + sysroot.tar；lld 是懒加载的，首次链接才拉）。
+但 SPEC 同段的表格把三资产求和叫「合计」，与「首拉」**自相矛盾** ——
+两个口径差 8.5 MB、结论相反，已升到 `to-questionnaire-clang-wasm-m1.md` 的 C0
+请委托人裁决**这一件事**。
+报告：[`m1/OPT-RESULTS.md`](m1/OPT-RESULTS.md)（实验，§0.1 是口径那节）·
+[`m1/OPT-REVIEW.md`](m1/OPT-REVIEW.md)（独立复核）。
+首拉分解可复跑：`bash m1/exp-firstload.sh`。
+
+**下一步不是继续减重**：按链接器 map 的逐符号归因（§5.3），
+把所有非 C 语言特性（模板/OpenMP/ObjC/HLSL/CUDA）**全砍光的乐观上限**
+也只到 19.59 MB、仍超 15 MB，而且上游没有"只编 C"的开关 ——
+**"只支持 C"这条我先前推荐过，实测是错的**。等 C0 的口径裁决即可。
 
 **M2 进行中**。已完成：
 
@@ -23,19 +35,14 @@ submodule 钉住（pin = commit，字节 = sha256）。需求书是**唯一一�
 - **sysroot 打包 + manifest + sha256 fail-closed**（§6/§2/§9.10）—— [`package/RESULTS.md`](package/RESULTS.md)
 - **wasm64**（§4.5/§9.7）—— 同一个 clang/lld 加 target 旗标即可，不需要第二套产物
 
-还剩 **Worker 化**（§7.3，需真实浏览器）、分片懒加载（§6，等预算决定）。
+还剩 **Worker 化**（§7.3，需真实浏览器）；分片懒加载（§6）**其实已经在驱动里实现了**
+（lld 懒加载），只等 C0 的口径裁决。
 
-**体积优化实验（三轮做完，到不了 15 MB）**：三根杠杆按收益排 ——
-`MinSizeRel`（真 `-Os`）−18.9%、lld 只留 wasm 驱动 −12.1%、关 C++ 异常/RTTI −5.2%；
-合计 26.06 → 21.11 MB，**仍超预算 41%**。配置→体积对照表、每条实验的复跑命令、
-以及"试过但没用"的清单都在 [`m1/OPT-RESULTS.md`](m1/OPT-RESULTS.md)。
-按体积分布（`code` 段占 89.4%、无 debug 段可剥）判断，**再往下只能动功能集合**
-（例如只支持 C —— 丢掉整个 C++ 前端）。**预算要不要改是委托人的决定**，本仓只给数字。
-
-> ⚠️ 两处反直觉的坑，复跑前值得先看：`-O1` 会被 `Release` 追加的 `-O3` 覆盖
+> ⚠️ 三处反直觉的坑，复跑前值得先看：`-O1` 会被 `Release` 追加的 `-O3` 覆盖
 > （交接单据此判断错过一次）；`-sSUPPORT_LONGJMP=wasm` 是**制造**
-> `emscripten_longjmp` 链接失败的开关，不是修法。两条都记在
-> [`retractions.json`](retractions.json) 的 R-007 / R-008。
+> `emscripten_longjmp` 链接失败的开关、不是修法；`gzip -9 -c` 会把文件名写进头
+> （同一份字节流换路径就换值）。三条都记在
+> [`retractions.json`](retractions.json) 的 R-007 / R-008 / R-009。
 
 ## 数字住在哪
 

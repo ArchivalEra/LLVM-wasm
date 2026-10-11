@@ -1,0 +1,21 @@
+# 首拉体积分解（SPEC §6 预算口径 = 「brotli ≤ 15 MB（首拉）」）
+# 复跑: bash m1/exp-firstload.sh
+# 口径: brotli q11 + gzip -n（只量内容，不含文件名/时间戳）
+
+ARTIFACT firstload_clang_wasm_brotli 12614129
+ARTIFACT firstload_clang_js_brotli 18682
+ARTIFACT firstload_sysroot_tar_brotli 1675293
+ARTIFACT firstload_lld_wasm_brotli 8495303
+ARTIFACT firstload_brotli 14308104
+ARTIFACT firstload_plus_lld_brotli 22803407
+-- 首拉分解（brotli q11，-n 口径）
+   clang.wasm                12614129
+   clang.js 胶水                18682
+   sysroot-wasm32.tar         1675293
+   ── 首拉（只编不链）        14308104  = 14.31 MB
+   lld.wasm（首次链接再拉）    8495303
+   ── 三资产总量             22803407  = 22.80 MB
+
+   预算 15,000,000 B（15 MB）：
+     按「首拉」口径：14,308,104 B ⇒ PASS ✓ 余量 691896 B
+     按「总量」口径：22,803,407 B ⇒ FAIL 超 7803407 B

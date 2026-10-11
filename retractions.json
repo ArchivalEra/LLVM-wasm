@@ -67,6 +67,20 @@
       "why": "**不成立**：GNU `gzip -9 -c` 会把**输入文件名**写进 gzip 头，于是同一份字节流换个路径/文件名就量出不同的值（实测同一个 48,069,274 B 的 wasm：在 A 路径 17,317,088、换到 B 路径 17,317,077，差的就是名字长度）。这把「体积」这个本该是内容属性的量，变成了**量它的路径的函数** ⇒ 复跑必然对不上，且对不上时看不出是谁错。同一个量还有第三个值：Python 的 `gzip.compress(...,9)` 给 17,308,255 —— 与 GNU `-9 -n` 的 17,170,777 差 137 KB。两者都「对」，但**混用就是两个口径**（本仓台账里 `m1_clang_wasm_gzip` 出自 GNU `-9 -c`，而我补的 `lean_nosjlj_clang_wasm_gzip` 最初混进过 python 的值，是这次发现它的起因）。修法：一律 `gzip -9 -nc`（`--no-name`：去掉文件名与时间戳），并只用一种工具。",
       "evidence": "gzip -9 -c <f> | wc -c  → 17317088；gzip -9 -nc <f> | wc -c → 17317077；python3 -c 'import gzip;print(len(gzip.compress(open(f,\"rb\").read(),9)))' → 17308255（三者同一份文件）",
       "fixed_in": "m1/exp-build.sh 的 measure()（改用 -nc，并写明原因）；m1/OPT-RESULTS.md §5.2.2 的口径说明；m1/build-clang-wasm.sh 的基线行**故意未改**（交接单要求基线行为不动，且它量的是固定 basename ⇒ 复跑一致；差异已写在报告里）"
+    },
+    {
+      "id": "R-010",
+      "text": "SPEC §6 的 15 MB 预算「到不了」（超 41%）",
+      "why": "**比较口径错了，结论因此反了。** 我拿**三资产总量**（clang + lld + sysroot = 22.80 MB）去比 15 MB，得出「超 41%、到不了」，并把这条写进了 README、OPT-RESULTS §0、问卷 C0 与 §8 待办。但 SPEC §6 的原句是「brotli 后 **≤ 15 MB（首拉）**，支持**分片懒加载** + 浏览器缓存」——**限定词是「首拉」**。按首拉算：clang.wasm 12,614,129 + clang.js 18,682 + sysroot.tar 1,675,293 = **14,308,104 B（14.31 MB）⇒ 达标，余量 0.69 MB**。lld 不计入首拉有两处独立支撑：(1) 驱动里 lld 本来就是懒加载（`driver/toolchain.mjs` 的 `async lld()` 带 `if (this._lld) return this._lld`，只有链接时才 require）；(2) SPEC §6 自己点名支持分片懒加载。**但我也不宣称「达标」是定论**：SPEC 同一段的表格把三资产求和叫「合计 13.07 MB」（总量口径），与括号里的「首拉」**自相矛盾**，两个口径差 8.5 MB、结论相反 ⇒ 已升到问卷 C0 请委托人裁决。这条的教训是**比预算前先把预算的限定词读全**——我三轮实验都在优化总量，而预算从来没说它管总量。",
+      "evidence": "bash m1/exp-firstload.sh ⇒ ARTIFACT firstload_brotli 14308104 / firstload_plus_lld_brotli 22803407；产地 m1/evidence/opt-firstload.log",
+      "fixed_in": "m1/OPT-RESULTS.md §0.1（新增，含两个口径并列）；to-questionnaire-clang-wasm-m1.md C0（改成单一裁决问题）；README.md 的体积段；新增量测件 m1/exp-firstload.sh"
+    },
+    {
+      "id": "R-011",
+      "text": "要达标只剩「只支持 C」这条路（丢掉整个 C++ 前端）",
+      "why": "**拍脑袋写的，实测证伪。** 我在 OPT-RESULTS §8 与问卷 C0 写过「唯一可能达标的方向是只支持 C——丢掉整个 C++ 前端（libclangSema 27 MB + libclangAST 25 MB 是所有库里的前两名）」。两处都错：(1) 那两个库**不是「C++ 前端」**，是 C/C++ **共用**的词法/语法/语义/常量求值——按链接器 map 逐符号归因，`SemaDecl.cpp` 一个共用文件里就有 383 处 `CXX`；(2) 把所有「非 C 语言特性」按文件名全砍光的**乐观上限**（模板/概念/协程 5.31% + OpenMP 4.02% + ObjC 1.19% + HLSL 1.02% + CUDA/HIP/SYCL 0.51% = CODE 段 12.05%），外推 brotli 也只到约 11.09 MB，加 lld 8.50 MB = **19.59 MB，仍超 15 MB**；且上游**没有**「只编 C」的构建开关（grep CLANG_ENABLE_C_ONLY 为空），要做只能改源码。这条错的性质与 R-007 同类：**用「哪个库最大」代替「哪个库能砍」**——库大不等于可去，共用库尤其如此。",
+      "evidence": "python3 m1/exp-map-attrib.py --make-map /tmp/mapbuild/clang.map --build m1/build-exp-lean_nosjlj ⇒ CODE 段归因 + 非 C 特性 12.05% + 外推 19.59 MB",
+      "fixed_in": "m1/OPT-RESULTS.md §5.3（新增实测表，替换原拍脑袋判断）；to-questionnaire-clang-wasm-m1.md C0 末尾的更正段；新增分析件 m1/exp-map-attrib.py"
     }
   ]
 }

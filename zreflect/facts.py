@@ -100,7 +100,8 @@ def m1_inputs_fingerprint():
     return h.hexdigest()[:16]
 
 
-M1_OPT_INPUTS = ("m1/exp-build.sh", "m1/exp-run.sh", "m1/patch-lld-wasm-only.sh")
+M1_OPT_INPUTS = ("m1/exp-build.sh", "m1/exp-run.sh", "m1/patch-lld-wasm-only.sh",
+                 "m1/exp-firstload.sh")
 
 
 def m1_opt_inputs_cmd():
@@ -426,7 +427,18 @@ def measure_facts():
             ("lean_nosjlj_clang_wasm_gzip", "opt-lean_nosjlj.log",
              "同上 gzip（`-n` 口径：不含文件名/时间戳，见 exp-build.sh 的说明）"),
             ("lean_nosjlj_acceptance_pass", "opt-lean_nosjlj-acceptance.log",
-             "关异常后的 clang 仍能编出 side module（验收 PASS 数）")):
+             "关异常后的 clang 仍能编出 side module（验收 PASS 数）"),
+            # ── 首拉分解（SPEC §6 的预算口径是「≤ 15 MB（**首拉**）」）──────────
+            # 这一组是**结论性**的：前几版 OPT-RESULTS 一直在比**总量**，
+            # 得到「到不了」；而 SPEC 的字面口径是**首拉**（且点名支持分片懒加载），
+            # 按首拉算是**达标**的。两个口径都给数字，谁对由委托人裁。
+            # 产地 = m1/evidence/opt-firstload.log（bash m1/exp-firstload.sh）。
+            ("firstload_brotli", "opt-firstload.log",
+             "首拉 brotli：clang.wasm + clang.js + sysroot tar（不含 lld —— 它是懒加载）"),
+            ("firstload_plus_lld_brotli", "opt-firstload.log",
+             "三资产总量 brotli：首拉 + lld.wasm（即 SPEC §6 那张表的「合计」口径）"),
+            ("firstload_sysroot_tar_brotli", "opt-firstload.log",
+             "sysroot-wasm32.tar 的 brotli（首拉的一部分）")):
         val = _artifact_int(os.path.join(EV1, log), key)
         if val is not None:
             facts[key] = fact(
