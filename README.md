@@ -34,6 +34,9 @@ submodule 钉住（pin = commit，字节 = sha256）。需求书是**唯一一�
 - **薄驱动**（SPEC §7.4/§7.5 的 `compile()` 接口 + §5.4 缺口检查）—— [`driver/RESULTS.md`](driver/RESULTS.md)
 - **sysroot 打包 + manifest + sha256 fail-closed**（§6/§2/§9.10）—— [`package/RESULTS.md`](package/RESULTS.md)
 - **wasm64**（§4.5/§9.7）—— 同一个 clang/lld 加 target 旗标即可，不需要第二套产物
+- **体积达标**（§6）：三轮减重后（`-Os` + lld 裁 wasm-only + 关异常/RTTI），**首拉 brotli 14.31 MB ≤ 15 MB**
+  —— SPEC §6 的口径是**首拉**（lld 是懒加载分片）。lean 编译器（`-fno-exceptions`）
+  产出的模块**异常往返正常**（§9.4 已验）。报告：[`m1/OPT-RESULTS.md`](m1/OPT-RESULTS.md)
 
 还剩 **Worker 化**（§7.3，需真实浏览器）；分片懒加载（§6）**其实已经在驱动里实现了**
 （lld 懒加载），只等 C0 的口径裁决。
