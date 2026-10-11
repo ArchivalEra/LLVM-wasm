@@ -7,44 +7,7 @@
 // a host directory (development) or a bundle (delivery).
 import { readFileSync, existsSync } from 'fs';
 import { createHash } from 'crypto';
-
-/**
- * Read a tar (uncompressed) into {path: Buffer}.
- *
- * Deliberately small: we control both ends of this format (package-sysroot.sh
- * writes it), and a full tar implementation is not worth carrying into a
- * browser bundle. It handles regular files, directories and the PAX/GNU
- * extensions `tar -cf` actually emits for long names.
- */
-export function readTar(buf) {
-  const out = new Map();
-  let off = 0;
-  let pendingLongName = null;
-  const str = (b, s, n) => b.toString('utf8', s, s + n).replace(/\0.*$/, '');
-  while (off + 512 <= buf.length) {
-    const header = buf.subarray(off, off + 512);
-    if (header.every((b) => b === 0)) break;               // end-of-archive
-    const name = str(header, 0, 100);
-    const sizeField = str(header, 124, 12).trim();
-    const size = parseInt(sizeField, 8) || 0;
-    const type = String.fromCharCode(header[156] || 48);
-    const prefix = str(header, 345, 155);
-    let full = prefix ? `${prefix}/${name}` : name;
-    off += 512;
-    const data = buf.subarray(off, off + size);
-    off += Math.ceil(size / 512) * 512;
-
-    if (type === 'L') {                                     // GNU long name
-      pendingLongName = data.toString('utf8').replace(/\0.*$/, '');
-      continue;
-    }
-    if (type === 'x' || type === 'g') continue;              // PAX headers
-    if (type === '5') continue;                              // directory
-    if (pendingLongName) { full = pendingLongName; pendingLongName = null; }
-    out.set(full.replace(/^\.\//, ''), Buffer.from(data));
-  }
-  return out;
-}
+import { readTar } from './tar-reader.mjs';
 
 /**
  * Verify a bundle against its manifest entry, then unpack it.

@@ -18,113 +18,18 @@
 // (SPEC §7.3) or packaging. Callers supply those.
 import { readFileSync, existsSync, readdirSync } from 'fs';
 import { loadBundle, installBundle } from './sysroot-bundle.mjs';
+import {
+  EXCEPTION_MODES, compileFlagsFor, linkFlagsFor, REMOVED_LLVM24,
+  symbolGap, compileArgv, linkArgv,
+} from './abi.mjs';
+export { symbolGap, EXCEPTION_MODES };
 import { join, dirname } from 'path';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
 
-// ---------------------------------------------------------------- ABI contract
-// SPEC §4.5: four axes, all from the caller. The toolchain must not guess.
-export const EXCEPTION_MODES = Object.freeze([
-  'none',            // no exception support at all
-  'emscripten',      // JS-emulated exceptions (-sDISABLE_EXCEPTION_CATCHING=0)
-  'wasm-legacy',     // -fwasm-exceptions with WASM_LEGACY_EXCEPTIONS (6.x default)
-  'wasm-standard',   // -fwasm-exceptions with WASM_LEGACY_EXCEPTIONS=0
-]);
-
-function compileFlagsFor(abi) {
-  // Compile-side flags only. `-s` settings are emcc's, not clang's: handing a
-  // bare clang `-sWASM_LEGACY_EXCEPTIONS=1` makes it exit 1 with no useful
-  // message (measured). The exception mode is a *codegen* choice here
-  // (-fwasm-exceptions or not); which wasm EH flavour the linker pairs it with
-  // is decided in linkFlagsFor().
-  const f = [];
-  switch (abi.exceptions) {
-    case 'none': f.push('-fno-exceptions'); break;
-    case 'emscripten': break;              // emulated EH needs no codegen flag
-    case 'wasm-legacy':
-    case 'wasm-standard': f.push('-fwasm-exceptions'); break;
-    default: throw new Error(`unknown abi.exceptions: ${abi.exceptions}`);
-  }
-  if (abi.pthread) f.push('-pthread');
-  return f;
-}
-
-function linkFlagsFor(abi) {
-  const f = [];
-  if (abi.pthread) f.push('--shared-memory');
-  // The tag name follows the exception mode; see §5.5.
-  if (abi.exceptions === 'wasm-legacy' || abi.exceptions === 'wasm-standard') {
-    f.push('-mllvm', '-exception-model=wasm');
-  }
-  return f;
-}
-
-// The flags LLVM 24 no longer accepts. Kept as data, not scattered conditionals,
-// so a version probe can extend it (SPEC §4.2's flag table).
-const REMOVED_LLVM24 = new Set(['-wasm-enable-eh']);
-
-// ------------------------------------------------------------ symbol gap (5.4)
-const MECHANICAL = new Set([
-  'memory', '__indirect_function_table', '__stack_pointer', '__memory_base',
-  '__table_base', '__stack_high', '__heap_base', '__cpp_exception',
-  '__c_longjmp', '__wasm_apply_data_relocs', '__dso_handle', '__tls_size',
-  '__tls_align', '__set_stack_limits', '_emscripten_tls_init',
-  '__wasm_init_tls', '__wasm_call_ctors',
-]);
-
-/**
- * SPEC §5.4: which symbols does this side module need that the host lacks?
- *
- * The side's own exports are subtracted because `--export-dynamic` makes a side
- * module both import and export the same symbol (GOT self-reference), and
- * emscripten's resolveSymbol consults moduleExports. Skipping that subtraction
- * reports false gaps (measured: 2 vs 1 on the spec's own fixture).
- *
- * Returns bare data; printing is the caller's business.
- */
-export function symbolGap(sideBytes, hostBytes) {
-  const side = new WebAssembly.Module(sideBytes);
-  const imports = WebAssembly.Module.imports(side);
-  const sideExports = new Set(WebAssembly.Module.exports(side).map((e) => e.name));
-
-  const need = [...new Set(imports
-    .filter((i) => i.module === 'env' || i.module.startsWith('GOT.'))
-    .map((i) => i.name))]
-    .filter((n) => !MECHANICAL.has(n) && !sideExports.has(n));
-
-  const sideTags = imports.filter((i) => i.kind === 'tag').map((i) => i.name);
-
-  if (!hostBytes) {
-    // No host given: we can still say what the module needs, but not what is
-    // missing. Saying "0 missing" here would be the zero-value lie.
-    return {
-      ok: true,
-      hostChecked: false,
-      needs: need.length,
-      needsTags: sideTags.length,
-      missingFunctions: [],
-      missingTags: [],
-      sideSelfExported: [...sideExports].filter((n) => imports.some((i) => i.name === n)),
-    };
-  }
-
-  const host = new WebAssembly.Module(hostBytes);
-  const hostExports = new Set(WebAssembly.Module.exports(host).map((e) => e.name));
-  const hostTags = new Set(WebAssembly.Module.exports(host)
-    .filter((e) => e.kind === 'tag').map((e) => e.name));
-
-  return {
-    ok: true,
-    hostChecked: true,
-    needs: need.length,
-    needsTags: sideTags.length,
-    missingFunctions: need.filter((n) => !hostExports.has(n)),
-    missingTags: sideTags.filter((n) => !hostTags.has(n)),
-    sideSelfExported: [...sideExports].filter((n) => imports.some((i) => i.name === n)),
-  };
-}
-
+// ABI 拼装与缺口判定来自 driver/abi.mjs（与浏览器 worker 共用的唯一产地）。
+// symbolGap 在 driver/abi.mjs（单一产地），这里 re-export 供旧调用方。
 // ------------------------------------------------------------------ the driver
 export class Toolchain {
   /**
@@ -305,18 +210,7 @@ export class Toolchain {
     lld.FS.writeFile('/out/tu.o', obj);
 
     const crt = `${archLib}/crtbegin-mt.o`;
-    const cmd = [
-      `-m${target}`, '-o', '/out/module.so', '--strip-debug',
-      '--export=__wasm_call_ctors',
-      '--export=_emscripten_tls_init',
-      '--export-dynamic',
-      '--unresolved-symbols=import-dynamic',
-      '-shared', '--no-stack-first',
-      ...linkFlagsFor(abi),
-      ...(this._hasCrt(target) ? [crt] : []),
-      '/out/tu.o',
-      `-L${archLib}`,
-    ];
+    const cmd = linkArgv({ target, abi, hasCrt: this._hasCrt(target), objPath: '/out/tu.o' });
     this._log(`[link] ${cmd.join(' ')}`);
     const rcL = lld.callMain(cmd);
     if (rcL !== 0) {
