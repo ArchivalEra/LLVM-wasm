@@ -1,0 +1,65 @@
+<!doctype html>
+<!-- Browser harness for the in-wasm toolchain (SPEC §7.1–7.3).
+     The main thread only talks to the worker; the compile itself, the sysroot
+     install and the sha256 check all happen inside the worker (§7.3), so the
+     main thread never blocks on a multi-hundred-MB synchronous compile. -->
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>LLVM-wasm 浏览器验收</title>
+</head>
+<body>
+<h1>浏览器内编译（SPEC §7）</h1>
+<pre id="log"></pre>
+<script type="module">
+const log = (s) => { document.getElementById('log').textContent += s + '\n'; };
+window.__result = null;
+
+const worker = new Worker('./worker.mjs', { type: 'module' });
+
+// §9.1 fixture: one exported function + one std::string use.
+// §9.4 fixture (exception round-trip) is compileable too via `mode`.
+window.__runCompile = (source) => new Promise((resolve) => {
+  const onMsg = (e) => {
+    const m = e.data;
+    if (m.type === 'log') { log(m.text); return; }
+    if (m.type === 'ready') { log('worker ready'); return; }
+    if (m.type === 'result') {
+      worker.removeEventListener('message', onMsg);
+      window.__result = m;
+      resolve(m);
+    }
+  };
+  worker.addEventListener('message', onMsg);
+  worker.postMessage({ type: 'compile', source });
+});
+
+// init payload comes from the test (it knows the served URLs + digest)
+window.__init = (initMsg) => new Promise((resolve, reject) => {
+  // ⚠️ 必须同时等 ready 和 result：init 失败时 worker 发的是 result 错误消息，
+  // 只等 ready ⇒ 永远挂起（实测：挂满 15 分钟超时，一行日志都没有）。
+  const onMsg = (e) => {
+    const m = e.data;
+    if (m.type === 'log') { log(m.text); return; }
+    if (m.type === 'ready') { worker.removeEventListener('message', onMsg); resolve(true); }
+    if (m.type === 'result') {
+      worker.removeEventListener('message', onMsg);
+      reject(new Error('init failed: ' + (m.error || JSON.stringify(m))));
+    }
+  };
+  worker.addEventListener('message', onMsg);
+  worker.addEventListener('error', (e) => {
+    const msg = (e && e.message) ? e.message : '(no message)';
+    log('worker onerror: ' + msg);
+    reject(new Error('worker error: ' + msg));
+  });
+  worker.addEventListener('messageerror', (e) => {
+    log('worker messageerror');
+    reject(new Error('worker messageerror'));
+  });
+  worker.postMessage({ type: 'init', ...initMsg });
+});
+log('harness loaded');
+</script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+clang: m1/build-exp-lean_nosjlj/bin  lld: lld-wasm-only.js  tar: package/out/sysroot-wasm32.tar
+PASS page loads
+PASS crossOriginIsolated (SharedArrayBuffer available)
+
+== basic ==
+PASS basic: compile ok in browser
+PASS basic: module has bytes: 976 B
+PASS basic: gap report present
+
+== eh ==
+PASS eh: compile ok in browser
+PASS eh: module has bytes: 2117 B
+PASS eh: gap report present
+PASS browser: exports minifn: __wasm_call_ctors,_emscripten_tls_init,minifn
+PASS browser: exports __wasm_call_ctors
+PASS browser: EH fixture imports __cpp_exception (§9.4): the lean compiler still emits EH for user code
+
+== §9.8 纯客户端 ==
+PASS no non-GET requests (source cannot have left): 17 requests, all GETs
+PASS no requests leave the harness origin (blob: glue excluded): 17 requests; 4 are in-page blob: glue
+PASS no URL carries source payloads: the compile payload never appears in a URL
+-- artifacts
+ARTIFACT browser_acceptance_pass 14
+ARTIFACT browser_module_basic_bytes 976
+ARTIFACT browser_module_eh_bytes 2117
+
+=== ALL PASS ===

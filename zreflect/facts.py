@@ -143,6 +143,27 @@ def driver_inputs_cmd():
     return "cat %s | sha256sum | cut -c1-16" % " ".join(DRIVER_INPUTS)
 
 
+BROWSER_LOG = repo("browser/evidence/browser.log")
+
+BROWSER_INPUTS = ("browser/worker.mjs", "browser/index.html", "browser/check-browser.mjs")
+
+
+def browser_inputs_cmd():
+    return "cat %s | sha256sum | cut -c1-16" % " ".join(BROWSER_INPUTS)
+
+
+def browser_inputs_fingerprint():
+    """浏览器 harness 的指纹 —— 浏览器验收数字的便宜见证。"""
+    import hashlib                                          # noqa: PLC0415
+    h = hashlib.sha256()
+    for rel in BROWSER_INPUTS:
+        p = os.path.join(GATE_REPO, rel)
+        if os.path.exists(p):
+            with open(p, "rb") as fh:
+                h.update(fh.read())
+    return h.hexdigest()[:16]
+
+
 def driver_inputs_fingerprint():
     """薄驱动源码的指纹 —— 驱动验收数字的便宜见证。"""
     import hashlib                                          # noqa: PLC0415
@@ -392,16 +413,30 @@ def measure_facts():
              "缺口检查的反向断言（真缺口必须被点名）PASS 数"),
             ("fail_closed_pass", "fail-closed.log",
              "sha256 fail-closed 断言数（篡改/截断/字节数不符/缺 manifest 四类拒绝）"),
+            ("browser_acceptance_pass", BROWSER_LOG,
+             "真实浏览器（Chromium）验收 PASS 数：Worker 编译 + §9.8 纯客户端"),
+            ("browser_module_basic_bytes", BROWSER_LOG,
+             "浏览器里编出的 side module 字节数（对比 node 驱动 [[driver_module_bytes]]）"),
+            ("browser_module_eh_bytes", BROWSER_LOG,
+             "浏览器里异常夹具的字节数（§9.4 在真浏览器里复核）"),
+            ("browser_acceptance_pass", "../browser/evidence/browser.log",
+             "真实浏览器（Chromium）验收 PASS 数：Worker 编译 + §9.8 纯客户端"),
+            ("browser_module_basic_bytes", "../browser/evidence/browser.log",
+             "浏览器里编出的 side module 字节数（对比 node 驱动 [[driver_module_bytes]]）"),
+            ("browser_module_eh_bytes", "../browser/evidence/browser.log",
+             "浏览器里异常夹具的字节数（§9.4 在真浏览器里复核）"),
             ("wasm64_acceptance_pass", "wasm64-acceptance.log",
              "wasm64 验收 PASS 数（含「必须是真 64 位」的反向断言）"),
             ("wasm64_module_bytes", "wasm64-acceptance.log",
              "wasm64 side module 字节数（对比 wasm32 [[m0_wasm32_side_bytes]] 量级）"),
             ("wasm32_module_bytes", "wasm64-acceptance.log",
              "同一夹具 wasm32 的字节数（两档对照）")):
-        val = _artifact_int(os.path.join(EVD, log), key)
+        path = log if os.path.isabs(log) else os.path.join(EVD, log)
+        rel_log = os.path.relpath(path, GATE_REPO)
+        val = _artifact_int(path, key)
         if val is not None:
             facts[key] = fact(
-                val, "grep -m1 '^ARTIFACT %s ' driver/evidence/%s | cut -d' ' -f3" % (key, log),
+                val, "grep -m1 '^ARTIFACT %s ' %s | cut -d' ' -f3" % (key, rel_log),
                 "driver/evidence", label, replay=False,
                 witness=driver_inputs_cmd(), witness_expect=driver_inputs_fingerprint())
 
@@ -419,10 +454,12 @@ def measure_facts():
                 val, "grep -m1 '^ARTIFACT %s ' m1/evidence/%s | cut -d' ' -f3" % (key, log),
                 "m1/evidence", label, replay=False,
                 witness=m1_opt_inputs_cmd(), witness_expect=m1_opt_inputs_fingerprint())
-        val = _artifact_int(os.path.join(EVD, log), key)
+        path = log if os.path.isabs(log) else os.path.join(EVD, log)
+        rel_log = os.path.relpath(path, GATE_REPO)
+        val = _artifact_int(path, key)
         if val is not None:
             facts[key] = fact(
-                val, "grep -m1 '^ARTIFACT %s ' driver/evidence/%s | cut -d' ' -f3" % (key, log),
+                val, "grep -m1 '^ARTIFACT %s ' %s | cut -d' ' -f3" % (key, rel_log),
                 "driver/evidence", label, replay=False,
                 witness=driver_inputs_cmd(), witness_expect=driver_inputs_fingerprint())
 

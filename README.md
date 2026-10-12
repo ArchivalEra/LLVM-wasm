@@ -71,6 +71,9 @@ node driver/acceptance-driver.mjs
 node driver/check-gap-reverse.mjs
 node driver/check-fail-closed.mjs             # §9.10 篡改必须被拒
 node driver/acceptance-wasm64.mjs             # §9.7 两档都过，且 wasm64 是真 64 位
+
+# M2：真实浏览器（Chromium + COOP/COEP 服务器）
+node browser/check-browser.mjs
 M1_BUNDLE=1 node driver/acceptance-driver.mjs  # 交付路径：只从 tar 编译
 
 # M2：打包 sysroot（实测构成 + manifest + sha256）
@@ -122,6 +125,7 @@ python3 toolchain/emsdk/emsdk.py install <版本> && python3 toolchain/emsdk/ems
 | `m0/` | M0 验证链：夹具、runner、证据日志、RESULTS.md |
 | `m1/` | M1 构建与验收：把 clang/lld 编成 wasm，wasm 内全链验收 |
 | `driver/` | M2 薄驱动：`compile()` 接口 + §5.4 缺口检查 + §9.10 fail-closed |
+| `browser/` | M2 浏览器验收：Worker + 纯客户端证据（§7.3/§9.8） |
 | `package/` | M2 交付打包：sysroot tar + manifest |
 | `zreflect/` | Einfacht 机制层（vendored）：闸门 / 台账 / 渲染 |
 | `reflect-hooks/` | git 钩子与旋钮载体 `Einfacht.env` |
