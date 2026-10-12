@@ -116,6 +116,16 @@ python3 -c "import brotli,sys;print(len(brotli.compress(open(sys.argv[1],'rb').r
 python3 toolchain/emsdk/emsdk.py install <版本> && python3 toolchain/emsdk/emsdk.py activate <版本>
 ```
 
+## 一条从 issue #1 学到的规则
+
+**验收必须打开发布件本身。** 原先的 `driver/acceptance-*.mjs` 读 `package/out/`
+（那里两档 sysroot 恒在），所以**永远抓不到「发布时挑错了档」**——缺陷出现在交付面，
+而验收只覆盖了生产侧的中间产物。凡与交付相关的断言，都按 `manifest` 里的名字
+去开**实际发布出去的那个文件**。
+
+同一条教训的另一半：`hasCrt=false` 曾经静默（`compile()` 仍返回 `ok:true`），
+现在**先拒绝**再说。声称支持 + 静默降级 + 自检全绿，是本仓立身要消灭的形状。
+
 ## 纪律
 
 本仓用 [Einfacht](https://github.com/ArchivalEra/Einfacht)（vendored 在 `zreflect/`）：
