@@ -1,6 +1,9 @@
 # LLVM-wasm
 
-浏览器内的 C/C++ → Emscripten side module 编译工具链。独立仓库，被下游以
+浏览器内的 C/C++ → Emscripten side module 编译工具链。
+
+> **v0.1.0 已发布**：[releases/tag/v0.1.0](https://github.com/ArchivalEra/LLVM-wasm/releases/tag/v0.1.0)
+> —— 交付包（12 资产 + manifest）在附件里；下游接法见 [`DELIVERY.md`](DELIVERY.md)。独立仓库，被下游以
 submodule 钉住（pin = commit，字节 = sha256）。需求书是**唯一一份**，在
 下游仓：`Octave-Full-Wasm/build/113/SPEC-clang-wasm.md`（本仓不另存副本）。
 
