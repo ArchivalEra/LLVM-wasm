@@ -1,0 +1,43 @@
+clang: m1/build-exp-lean_nosjlj/bin  lld: lld-wasm-only.js  host: browser/host/host.js
+PASS loop page loads
+PASS worker ready (clang + lld + verified sysroot)
+
+== worker: compile the M0 fixture ==
+PASS worker compiled a side module
+   19602 bytes
+
+== page: dlopen it in an emscripten host ==
+   [host] == M0 host: dlopen side module ==
+   [host] PASS dlopen
+   [host] PASS dlsym(minifn): got=1 want=1
+   [host] PASS dlsym(miniprobe): got=1 want=1
+   [host] PASS dlsym(minithrow): got=1 want=1
+   [host] PASS dlsym(ministl): got=1 want=1
+   [host] PASS minifn(7): got=10 want=10
+   [host] PASS miniprobe([2,3;1,4]): got=5 want=5
+   [host] PASS miniprobe([1,2;3,4]): got=-2 want=-2
+   [host] PASS minithrow(0): got=0 want=0
+   [host] caught:thrown-from-oct
+   [host] PASS minithrow(1): got=1 want=1
+   [host] caught:octave-error-from-oct
+   [host] PASS minithrow(2): got=1 want=1
+   [host] PASS ministl(42): got=42:2 want=42:2
+   [host] === ALL PASS ===
+PASS host exited 0: rc=0
+PASS dlopen succeeded (in browser)
+PASS called a function in the side module
+PASS side module called back into the host
+PASS side module threw and caught its own exception: caught:thrown-from-oct
+PASS exception thrown BY the host, caught in the side module: caught:octave-error-from-oct
+PASS STL templates across the boundary
+PASS no failures from the host suite
+
+== §9.8 纯客户端 ==
+PASS no non-GET requests: 17 requests, all GETs
+PASS nothing leaves the origin: all same-origin
+-- artifacts
+ARTIFACT loop_acceptance_pass 13
+ARTIFACT loop_sidemodule_bytes 19602
+
+=== ALL PASS ===
+ARTIFACT browser_host_wasm 1413116

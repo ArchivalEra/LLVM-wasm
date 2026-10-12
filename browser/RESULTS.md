@@ -104,9 +104,37 @@ no URL carries source payloads
 | `browser/server.mjs` | 开发用静态服务器（带 COOP/COEP） |
 | `browser/evidence/browser.log` | 证据（`ARTIFACT` 行 = 数字产地） |
 
-## 7. 还没做的
+## 7. 闭环：浏览器里 编译 → dlopen（§9.1–9.4）
+
+上面 §1–§6 的浏览器验收到「产出 ABI 正确的 side module」为止，dlopen 那半此前只在
+node 宿主上验过。**现在两半在同一个浏览器里接上了**：
+
+```
+worker:  源码 --clang.wasm--> 目标文件 --lld.wasm--> side module（[[loop_sidemodule_bytes]] B）
+page:    side module --dlopen 进真实 emscripten 宿主--> 调用 + 异常穿越
+```
+
+验收 [[loop_acceptance_pass]] 项 PASS。宿主自检逐条通过：
+
+```
+PASS dlopen
+PASS minifn(7): got=10                    ← 调用 side 里的函数
+PASS miniprobe([2,3;1,4]): got=5          ← side 回调宿主符号
+PASS minithrow(1): caught:thrown-from-oct ← side 抛、side 接
+PASS minithrow(2): caught:octave-error-from-oct ← **宿主抛、side 接**
+PASS ministl(42): got=42:2                ← STL 模板跨边界
+```
+
+宿主模块由 `browser/build-host.sh` 编（`-sMODULARIZE` + 导出 `FS`/`callMain`，
+`MAIN_MODULE=1` + `-pthread` + `-fwasm-exceptions`，与 M0 同套旗标——
+side module 的 ABI 就是它们定义的）。宿主 wasm [[browser_host_wasm]] B。
+
+复跑：`bash browser/build-host.sh && node browser/check-loop.mjs`
+
+**同款 UMD 坑又中一次**：宿主 glue 也是 UMD，`import()` 下没有导出
+（`factory is not a function`）。与编译器 glue 同一修法：取文本追加
+`export default createHost`。
+
+## 8. 还没做的
 
 - **分片懒加载**（§6）—— 首拉预算已达标（14.31 MB），懒加载是架构手段，未实施。
-- **浏览器里真正 dlopen** —— 本轮的浏览器验收到「产出 ABI 正确的 side module」为止；
-  dlopen 那半在 M0 用 node 宿主验过（异常往返也是）。要在浏览器里也走一遍，
-  需要一个 emscripten 主模块宿主页。

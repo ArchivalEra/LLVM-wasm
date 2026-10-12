@@ -1,0 +1,68 @@
+<!doctype html>
+<!-- The full loop in a browser (SPEC §9.2–9.4): the worker compiles a side
+     module, the page dlopens it in a real emscripten *host* main module and
+     runs the host's own checks, including exceptions crossing the boundary.
+
+     Until now the browser half stopped at "produces a valid side module" and
+     the dlopen half ran under node (m0/run-m0.sh). This page joins them. -->
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>LLVM-wasm 浏览器闭环：编译 → dlopen</title>
+</head>
+<body>
+<h1>浏览器内 编译 → dlopen（SPEC §9.2–9.4）</h1>
+<pre id="log"></pre>
+<script type="module">
+const lines = [];
+const log = (s) => { lines.push(String(s)); document.getElementById('log').textContent = lines.join('\n'); };
+window.__lines = lines;
+
+const worker = new Worker('./worker.mjs', { type: 'module' });
+let seq = 0;
+const pending = new Map();
+
+worker.addEventListener('message', (e) => {
+  const m = e.data;
+  if (m.type === 'log') { log('  [worker] ' + m.text); return; }
+  const p = pending.get(m.type === 'result' ? 'result' : 'ready');
+  if (m.type === 'ready' && p) { pending.delete('ready'); p.resolve(true); }
+  if (m.type === 'result' && p) { pending.delete('result'); p.resolve(m); }
+});
+
+window.__init = (initMsg) => new Promise((resolve, reject) => {
+  pending.set('ready', { resolve, reject });
+  worker.postMessage({ type: 'init', ...initMsg });
+  setTimeout(() => reject(new Error('init timeout')), 600000);
+});
+
+window.__compile = (source, opts = {}) => new Promise((resolve, reject) => {
+  pending.set('result', { resolve, reject });
+  worker.postMessage({ type: 'compile', source, ...opts });
+  setTimeout(() => reject(new Error('compile timeout')), 600000);
+});
+
+/** Instantiate the host main module and hand it a compiled side module. */
+window.__hostRun = async (hostBase, soBytes) => {
+  // The emscripten glue is UMD: under import() there is no module/exports, all
+  // three UMD branches miss and the module exports nothing ("factory is not a
+  // function", measured — same trap as the compiler glue). Re-export the
+  // factory explicitly.
+  const glueText = await (await fetch(`${hostBase}/host.js`)).text();
+  const url = URL.createObjectURL(new Blob([glueText + '\nexport default createHost;'], { type: 'text/javascript' }));
+  const factory = (await import(url)).default;
+  const host = await factory({
+    locateFile: (f) => `${hostBase}/${f}`,
+    print: (s) => log('  [host] ' + s),
+    printErr: (s) => log('  [host:err] ' + s),
+    noInitialRun: true,
+  });
+  // drop the freshly compiled .so where dlopen will look for it
+  host.FS.writeFile('/minifn.so', new Uint8Array(soBytes));
+  const rc = host.callMain([]);
+  return { rc };
+};
+log('loop harness loaded');
+</script>
+</body>
+</html>

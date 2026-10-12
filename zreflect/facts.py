@@ -144,6 +144,7 @@ def driver_inputs_cmd():
 
 
 BROWSER_LOG = repo("browser/evidence/browser.log")
+LOOP_LOG = repo("browser/evidence/loop.log")
 
 BROWSER_INPUTS = ("browser/worker.mjs", "browser/index.html", "browser/check-browser.mjs")
 
@@ -419,6 +420,12 @@ def measure_facts():
              "浏览器里编出的 side module 字节数（对比 node 驱动 [[driver_module_bytes]]）"),
             ("browser_module_eh_bytes", BROWSER_LOG,
              "浏览器里异常夹具的字节数（§9.4 在真浏览器里复核）"),
+            ("loop_acceptance_pass", LOOP_LOG,
+             "浏览器**闭环**验收 PASS 数：worker 编译 → 页面 dlopen（§9.1–9.4）"),
+            ("loop_sidemodule_bytes", LOOP_LOG,
+             "闭环里编出的 side module 字节数（M0 完整夹具，对比 [[m0_wasm32_side_bytes]]）"),
+            ("browser_host_wasm", LOOP_LOG,
+             "浏览器宿主主模块的 wasm 字节数（dlopen 那半的宿主）"),
             ("browser_acceptance_pass", "../browser/evidence/browser.log",
              "真实浏览器（Chromium）验收 PASS 数：Worker 编译 + §9.8 纯客户端"),
             ("browser_module_basic_bytes", "../browser/evidence/browser.log",

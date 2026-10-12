@@ -74,6 +74,10 @@ node driver/acceptance-wasm64.mjs             # §9.7 两档都过，且 wasm64 
 
 # M2：真实浏览器（Chromium + COOP/COEP 服务器）
 node browser/check-browser.mjs
+
+# M2：浏览器闭环（编译 → dlopen，§9.1–9.4）
+bash browser/build-host.sh
+node browser/check-loop.mjs
 M1_BUNDLE=1 node driver/acceptance-driver.mjs  # 交付路径：只从 tar 编译
 
 # M2：打包 sysroot（实测构成 + manifest + sha256）
