@@ -63,25 +63,44 @@ export class Toolchain {
    * Unpack the delivered sysroot bundle, verifying sha256 first (SPEC §9.10).
    * Throws on mismatch — a tampered asset must not load.
    */
-  _bundle() {
-    if (this._bundleFiles) return this._bundleFiles;
-    if (!this.bundle) return null;
+  /**
+   * Unpack one arch's sysroot bundle, verifying sha256 first (SPEC §9.10).
+   *
+   * Two shapes are accepted:
+   *   { tarPath, manifestPath }              -- one tar, used for every target
+   *   { tars: { wasm32: {...}, wasm64: {...} } }  -- per-arch tars, selected here
+   *
+   * The per-arch form exists because a wasm32 sysroot cannot link a wasm64
+   * module: it has no lib/wasm64-emscripten/pic/crtbegin-mt.o, so the module
+   * ends up without _emscripten_tls_init and a threaded host refuses it with
+   * "tlsInitFunc is not a function" (issue #1). Selecting by target is the
+   * driver's job so callers never have to know which tar they need.
+   */
+  _bundle(arch = 'wasm32') {
+    this._bundleCache ||= new Map();
+    if (this._bundleCache.has(arch)) return this._bundleCache.get(arch);
+    if (!this.bundle) { this._bundleCache.set(arch, null); return null; }
+    const spec = this.bundle.tars ? this.bundle.tars[arch] : this.bundle;
+    if (!spec) { this._bundleCache.set(arch, null); return null; }
     const r = loadBundle({
-      tarPath: this.bundle.tarPath,
-      manifestPath: this.bundle.manifestPath,
-      expectSha256: this.bundle.expectSha256,
+      tarPath: spec.tarPath,
+      manifestPath: spec.manifestPath,
+      expectSha256: spec.expectSha256,
     });
-    this._log(`[bundle] verified sha256 ${r.sha256.slice(0, 16)}…, ${r.files.size} files, ${r.bytes} bytes`);
-    this._bundleFiles = r.files;
+    this._log(`[bundle:${arch}] verified sha256 ${r.sha256.slice(0, 16)}…, ${r.files.size} files, ${r.bytes} bytes`);
+    this._bundleCache.set(arch, r.files);
     return r.files;
   }
 
   /** Stage the sysroot into a module's FS, from whichever source was configured. */
   async _stageSysroot(fs, arch = 'wasm32') {
     if (this.bundle) {
-      const files = this._bundle();
-      // The tar is rooted at "sysroot/...", so install straight into /sysroot.
-      // It carries include/ (arch-shared) plus lib/<arch>-emscripten/pic.
+      // Prefer this arch's tar. If it is absent, fall back to any tar we do
+      // have: include/ is arch-shared, so headers still stage and the refusal
+      // (not a confusing link error) is what the caller sees.
+      const files = this._bundle(arch) || this._bundle('wasm32')
+        || (this.bundle.tars ? this._bundle(Object.keys(this.bundle.tars)[0]) : null);
+      if (!files) throw new Error(`no sysroot bundle available for ${arch}`);
       const n = installBundle(fs, files, '');
       this._log(`[bundle] installed ${n} files into the memory FS`);
       return n;
@@ -116,8 +135,19 @@ export class Toolchain {
 
   _hasCrt(arch = 'wasm32') {
     const rel = `sysroot/lib/${arch}-emscripten/pic/crtbegin-mt.o`;
-    if (this.bundle) return this._bundle().has(rel);
+    if (this.bundle) {
+      const files = this._bundle(arch);
+      // No tar for this arch at all, or one that lacks the crt: either way the
+      // target cannot be linked properly. compile() turns this into a refusal.
+      if (!files) return false;
+      return files.has(rel);
+    }
     return existsSync(join(this.sysroot, `lib/${arch}-emscripten/pic/crtbegin-mt.o`));
+  }
+
+  /** Which targets this Toolchain can actually link, given its sysroot source. */
+  targetsAvailable() {
+    return ['wasm32', 'wasm64'].filter((t) => this._hasCrt(t));
   }
 
   async clang() {
@@ -133,15 +163,24 @@ export class Toolchain {
   }
 
   async lld() {
-    if (this._lld) return this._lld;
+    // A FRESH instance every call. Reusing one makes the second compile fail
+    // with "wasm-ld (LLVM option parsing): Unknown command line argument
+    // '-exception-model=wasm'" even for an identical argv: emscripten's lld
+    // latches its feature set when it first parses -mllvm (measured in the
+    // browser, and reproduced here with wasm32 then wasm64 on one instance).
+    // The cached module is therefore never returned; keeping the factory warm
+    // is what the require() cache already does.
     const factory = require(join(this.lldBin, this.lldJs));
-    this._lld = await factory({
-      print: () => {}, printErr: () => {}, noInitialRun: true,
+    const errs = [];
+    const mod = await factory({
+      print: () => {}, printErr: (s2) => errs.push(String(s2).slice(0, 300)),
+      noInitialRun: true,
       // lld is a generic driver; it dispatches on argv[0]. Without this it
       // prints "lld is a generic driver" and exits 1 (measured).
       thisProgram: 'wasm-ld',
     });
-    return this._lld;
+    mod._collected = errs;   // link failures report WHY, not just an exit code
+    return mod;
   }
 
   /**
@@ -164,6 +203,25 @@ export class Toolchain {
     // asked (measured: the object's memory is i64, not silently i32). Same for
     // wasm-ld, which takes -mwasm64. So "two arches" costs one toolchain, not
     // two -- what differs per arch is the sysroot's pic/ subtree.
+    // Refuse BEFORE doing work if this sysroot cannot serve the target.
+    //
+    // This is the reverse assertion issue #1 asked for, and it matters more
+    // than which packaging shape we chose: without it, a bundle holding only a
+    // wasm32 sysroot still returns ok:true for target wasm64 -- the link line
+    // silently drops the crt, the product lacks _emscripten_tls_init, and the
+    // failure surfaces much later as "tlsInitFunc is not a function" in a
+    // threaded host. "Claims support + silently degrades + self-checks green"
+    // is the shape this repo exists to prevent.
+    if (!this._hasCrt(target)) {
+      return {
+        ok: false,
+        error: `sysroot for ${target} is missing in this toolchain's sysroot source `
+             + `(available: ${this.targetsAvailable().join(', ') || 'none'}). `
+             + `Refusing rather than linking a module without the TLS init entry.`,
+        diagnostics,
+        stage: 'precheck',
+      };
+    }
     const triple = `${target}-unknown-emscripten`;
     const archLib = `/sysroot/lib/${target}-emscripten/pic`;
     const files = req.files || (req.source ? { 'input.cc': req.source } : null);
@@ -214,7 +272,10 @@ export class Toolchain {
     this._log(`[link] ${cmd.join(' ')}`);
     const rcL = lld.callMain(cmd);
     if (rcL !== 0) {
-      return { ok: false, error: `wasm-ld exited ${rcL}`, diagnostics, stage: 'link' };
+      // Surface what the linker said. Issue #1's complaint was that a failure
+      // "does not point at the real cause"; an exit code alone does not either.
+      return { ok: false, error: `wasm-ld exited ${rcL}`, detail: (lld._collected || []).slice(-8),
+               diagnostics, stage: 'link' };
     }
     let so;
     try { so = lld.FS.readFile('/out/module.so'); } catch { /* fall through */ }

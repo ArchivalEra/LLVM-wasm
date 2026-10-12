@@ -11,6 +11,13 @@
 // memory64 proposal sets bit 0x04. Done in plain JS because a browser has no
 // wasm-dis to shell out to.
 //
+// ⚠️ Scope boundary (issue #1): this reads package/out/, where BOTH arches'
+// tars always exist, so it can never fail for the reason the released bundle
+// once did -- a bundle that shipped only the wasm32 tar while claiming both
+// targets. That class of defect is caught by release/check-release.mjs, which
+// opens the shipped artefacts by their manifest names. Keep both: this one
+// checks that the target is genuinely 64-bit, that one checks the delivery.
+//
 // Usage: node driver/acceptance-wasm64.mjs
 import { join, dirname } from 'path';
 import { existsSync } from 'fs';

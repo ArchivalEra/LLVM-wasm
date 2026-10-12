@@ -11,7 +11,8 @@
 |---|---|
 | `clang.wasm` + 胶水 | `release/out/clang.wasm` + `clang.js` |
 | `lld.wasm` | `release/out/lld-wasm-only.wasm` + `lld-wasm-only.js` |
-| `sysroot-headers.tar`（只含头文件） | `release/out/sysroot-headers.tar` |
+| `sysroot-headers.tar`（只含头文件） | `release/out/sysroot-headers.tar`（wasm32） |
+| 同上、wasm64 档 | `release/out/sysroot-headers.wasm64.tar` |
 | 驱动 API/脚本 | `release/out/driver/toolchain.mjs`（`compile()`，SPEC §7.4） |
 | `manifest.json`（名字+字节+sha256+**许可证**+版本串） | `release/out/manifest.json` |
 | `LICENSE` | `release/out/LICENSE`（AGPL-3.0，本仓胶水与脚本） |
@@ -86,6 +87,20 @@ memory64:   bool
 
 ⚠️ 判据是**契约相等**，不是版本号相等（SPEC §8）：
 工具链跑在 emsdk **[[emcc_version]]**，产物已经在 5.0.7 与 6.0.12 两代宿主上验证过。
+
+**两档 sysroot 都在包里，按 `target` 自动选**（issue #1）：
+`manifest.toolchain.sysroots` 给出 `{wasm32: …, wasm64: …}` 映射；把两档一起交给驱动即可：
+
+```js
+bundle: { tars: {
+  wasm32: { tarPath: '<bundle>/sysroot-headers.tar',        manifestPath: '<bundle>/manifest.json' },
+  wasm64: { tarPath: '<bundle>/sysroot-headers.wasm64.tar', manifestPath: '<bundle>/manifest.json' },
+}}
+```
+
+**若某个 target 的 sysroot 不在包里，`compile()` 会明确拒绝**（不是静默降级）——
+缺 crt 会让产物没有 `_emscripten_tls_init`，宿主到 dlopen 才报
+`TypeError: tlsInitFunc is not a function`，症状完全不指向真因。
 
 **`-s` 旗标与 clang 旗标面不同**：`-sWASM_LEGACY_EXCEPTIONS` 那类只对链接期有效，
 喂给裸 clang 会让它静默退出 1。驱动已经处理，不要自己再拼一遍。

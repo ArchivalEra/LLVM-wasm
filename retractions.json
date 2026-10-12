@@ -95,6 +95,13 @@
       "why": "我以为两档要像 sysroot 那样各建一套。实测：**编译器是多目标的** —— 同一个 clang.wasm 加 `--target=wasm64-unknown-emscripten` 就产出真 64 位对象（memory limits flags 带 0x04 位），同一个 lld.wasm 加 `-mwasm64` 就能链。两档只差 sysroot 的 `pic/` 子树（`crtbegin-mt.o` md5 各异），`include/` 共享。",
       "evidence": "node driver/acceptance-wasm64.mjs（wasm32 976 B memory64=false / wasm64 994 B memory64=true，10 PASS）",
       "fixed_in": "driver/RESULTS.md §4b；driver/acceptance-wasm64.mjs"
+    },
+    {
+      "id": "R-010",
+      "text": "targets_built: ['wasm32'] —— wasm64 tar not shipped because its crtbegin is generated on demand",
+      "why": "发布包只装 wasm32 档 sysroot，理由是「wasm64 的 crtbegin 按需生成」。**那个生成路径在代码里不存在** —— driver 只有 `_hasCrt()` 做存在性检查，没有任何生成逻辑。实际行为：`_hasCrt('wasm64')=false` ⇒ 链接行静默丢掉 crt ⇒ `compile({target:'wasm64'})` **仍返回 ok:true**，产物缺 `_emscripten_tls_init` ⇒ 下游宿主 dlopen 时报 `TypeError: tlsInitFunc is not a function`，症状完全不指向「包内少一个 crt 文件」。三个信号互相矛盾：`DELIVERY.md` 写「wasm64 也支持」、manifest 写 `['wasm32']`、`compile()` 返回 ok。由下游以 issue #1 报出（附最小复现）。",
+      "evidence": "node release/check-release.mjs（修复后 27 PASS；修复前 wasm64 那条编译返回 ok:true 但导出无 _emscripten_tls_init）",
+      "fixed_in": "driver/toolchain.mjs 的 precheck 硬失败 + 按 target 选 tar（bundle.tars）；release/make-release.sh 同时发布两档 sysroot；manifest.targets_built 改 ['wasm32','wasm64'] 并加 sysroots 映射"
     }
   ]
 }

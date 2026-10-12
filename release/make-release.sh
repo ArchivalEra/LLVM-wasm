@@ -27,9 +27,15 @@ LLD_BIN="$ROOT/m1/build-lld/bin"
 LLD_JS="lld-wasm-only.js"
 [ -f "$LLD_BIN/$LLD_JS" ] || LLD_JS="lld.js"
 LLD_WASM="${LLD_JS%.js}.wasm"
-SYSROOT_TAR="$ROOT/package/out/sysroot-wasm32.tar"
+# Both arches ship (issue #1). A wasm32 sysroot cannot link a wasm64 module --
+# it has no lib/wasm64-emscripten/pic/crtbegin-mt.o -- and the resulting module
+# lacks _emscripten_tls_init, which a threaded host rejects with "tlsInitFunc is
+# not a function". Shipping one tar and hoping the caller notices is how that
+# reaches production.
+SYSROOT32="$ROOT/package/out/sysroot-wasm32.tar"
+SYSROOT64="$ROOT/package/out/sysroot-wasm64.tar"
 
-for f in "$CLANG_BIN/clang.wasm" "$CLANG_BIN/clang.js" "$LLD_BIN/$LLD_WASM" "$LLD_BIN/$LLD_JS" "$SYSROOT_TAR"; do
+for f in "$CLANG_BIN/clang.wasm" "$CLANG_BIN/clang.js" "$LLD_BIN/$LLD_WASM" "$LLD_BIN/$LLD_JS" "$SYSROOT32" "$SYSROOT64"; do
   [ -f "$f" ] || { echo "FATAL: missing artefact $f"; exit 2; }
 done
 
@@ -44,7 +50,9 @@ cp "$CLANG_BIN/clang.js"        "$OUT/clang.js"
 # when we shipped the file as lld.js).
 cp "$LLD_BIN/$LLD_WASM"         "$OUT/$LLD_WASM"
 cp "$LLD_BIN/$LLD_JS"           "$OUT/$LLD_JS"
-cp "$SYSROOT_TAR"               "$OUT/sysroot-headers.tar"
+# wasm32 keeps the historical name; wasm64 gets an explicit suffix.
+cp "$SYSROOT32"                 "$OUT/sysroot-headers.tar"
+cp "$SYSROOT64"                 "$OUT/sysroot-headers.wasm64.tar"
 # ⚠️ Keep the original filenames: toolchain.mjs imports ./sysroot-bundle.mjs and
 # ./abi.mjs by relative path, so renaming on copy breaks the bundle (measured:
 # ERR_MODULE_NOT_FOUND sysroot-bundle.mjs). A "driver-*" prefix reads nicer in a
@@ -92,7 +100,12 @@ ASSETS = [
     ('clang.wasm', LLVM, 'C/C++ frontend, LLVM-derived wasm binary', True),
     (lld_wasm, LLVM, 'wasm-ld linker, LLVM-derived wasm binary', True),
     ('sysroot-headers.tar', 'mixed (see LICENSE-LLVM.txt, LICENSE-EMSCRIPTEN.txt)',
-     'emscripten sysroot: include/ + pic/crtbegin-mt.o only (SPEC §5.1, §6)', True),
+     'emscripten sysroot, wasm32: include/ + lib/wasm32-emscripten/pic/crtbegin-mt.o '
+     '(SPEC §5.1, §6)', True),
+    ('sysroot-headers.wasm64.tar', 'mixed (see LICENSE-LLVM.txt, LICENSE-EMSCRIPTEN.txt)',
+     'emscripten sysroot, wasm64: include/ + lib/wasm64-emscripten/pic/crtbegin-mt.o. '
+     'include/ is arch-shared, so this differs from the wasm32 tar only in the crt.',
+     True),
     ('clang.js', EMCC, 'emscripten glue for clang.wasm', False),
     (lld_js, EMCC, 'emscripten glue for the lld wasm above', False),
     ('driver/toolchain.mjs', OURS, 'thin driver: compile() per SPEC §7.4/§7.5', False),
@@ -118,10 +131,15 @@ man = {
         'clang': clang_ver,
         'llvm_source_commit': '55ea1f4ebea23d0355d5cdb075f1e12f28ab82d0',
         'lld_glue': lld_js,
-        'targets_built': ['wasm32'],
-        # The arch parameterisation means one toolchain serves both; only the
-        # sysroot's pic subtree differs. wasm64 tar not shipped in this bundle
-        # because its crtbegin is generated on demand (SPEC §6).
+        'targets_built': ['wasm32', 'wasm64'],
+        # One toolchain serves both: the same clang.wasm emits 64-bit objects
+        # (memory limits flag 0x04 verified) and the same lld.wasm links them
+        # with -mwasm64. What differs per arch is only the sysroot's pic/
+        # subtree, which is why both tars ship and the driver selects by target.
+        'sysroots': {
+            'wasm32': 'sysroot-headers.tar',
+            'wasm64': 'sysroot-headers.wasm64.tar',
+        },
     },
     'host_baseline': {
         '_why': 'SPEC §8: the judgment is contract equality, not version-string '
@@ -151,12 +169,23 @@ for name, lic, desc, brotli in ASSETS:
     man['assets'].append(e)
 
 # first-load accounting, since §6's budget is stated for the first pull
-first = [a for a in man['assets'] if a['name'] in ('clang.wasm', 'clang.js', 'sysroot-headers.tar')]
+# A host pulls ONE sysroot -- the one matching its arch -- so the budget counts
+# one, not both. Recorded per arch so a wasm64 host can see its own number.
+def fl_for(sysroot_name):
+    names = ('clang.wasm', 'clang.js', sysroot_name)
+    items = [a for a in man['assets'] if a['name'] in names]
+    return {'assets': list(names),
+            'brotli_bytes': sum(a.get('brotli_bytes') or a['bytes'] for a in items)}
+
 man['first_load'] = {
     '_why': 'SPEC §6 budget: brotli <= 15 MB for the FIRST PULL; lld arrives on '
-            'first link (lazy shard).',
-    'assets': [a['name'] for a in first],
-    'brotli_bytes': sum(a.get('brotli_bytes') or a['bytes'] for a in first),
+            'first link (lazy shard). A host pulls the sysroot for its own arch, '
+            'so the number is per-arch.',
+    **fl_for('sysroot-headers.tar'),
+    'per_arch': {
+        'wasm32': fl_for('sysroot-headers.tar')['brotli_bytes'],
+        'wasm64': fl_for('sysroot-headers.wasm64.tar')['brotli_bytes'],
+    },
 }
 lld = next(a for a in man['assets'] if a['name'].startswith('lld') and a['name'].endswith('.wasm'))
 man['first_load']['plus_lld_brotli_bytes'] = man['first_load']['brotli_bytes'] + (lld.get('brotli_bytes') or lld['bytes'])
