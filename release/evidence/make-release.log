@@ -1,0 +1,37 @@
+== copying artefacts ==
+manifest: /mnt/hdd/zcode-projects/LLVM-wasm/release/out/manifest.json
+  clang.wasm                     48069274 brotli=12614129  Apache-2.0 WITH LLVM-exception
+  lld.wasm                       33358910 brotli=8495303  Apache-2.0 WITH LLVM-exception
+  sysroot-headers.tar            20623360 brotli=1675293  mixed (see LICENSE-LLVM.txt, LICENSE-EMSCRIPTEN.txt)
+  clang.js                          76240  MIT OR NCSA (Emscripten)
+  lld.js                            72686  MIT OR NCSA (Emscripten)
+  driver-toolchain.mjs               9700  AGPL-3.0-or-later (this repo)
+  driver-abi.mjs                     7209  AGPL-3.0-or-later (this repo)
+  driver-tar-reader.mjs              1782  AGPL-3.0-or-later (this repo)
+  driver-sysroot-bundle.mjs          2621  AGPL-3.0-or-later (this repo)
+  LICENSE                           34523  AGPL-3.0-or-later (this repo)
+  LICENSE-LLVM.txt                  15141  Apache-2.0 WITH LLVM-exception
+  LICENSE-EMSCRIPTEN.txt             5093  MIT OR NCSA (Emscripten)
+
+ARTIFACT release_assets 12
+ARTIFACT release_clang_wasm 48069274
+ARTIFACT release_lld_wasm 33358910
+ARTIFACT release_first_load_brotli 14365662
+ARTIFACT release_total_brotli 22860965
+== bundle at /mnt/hdd/zcode-projects/LLVM-wasm/release/out ==
+总计 99912
+drwxrwxr-x 2 archivalera archivalera     4096 10月12日 13:27 .
+drwxrwxr-x 4 archivalera archivalera       56 10月12日 13:24 ..
+-rw-rw-r-- 1 archivalera archivalera    76240 10月12日 13:24 clang.js
+-rwxrwxr-x 1 archivalera archivalera 48069274 10月12日 13:24 clang.wasm
+-rw-rw-r-- 1 archivalera archivalera     7209 10月12日 13:24 driver-abi.mjs
+-rw-rw-r-- 1 archivalera archivalera     2621 10月12日 13:24 driver-sysroot-bundle.mjs
+-rw-rw-r-- 1 archivalera archivalera     1782 10月12日 13:24 driver-tar-reader.mjs
+-rw-rw-r-- 1 archivalera archivalera     9700 10月12日 13:24 driver-toolchain.mjs
+-rw-rw-r-- 1 archivalera archivalera    34523 10月12日 13:24 LICENSE
+-rw-r--r-- 1 archivalera archivalera     5093 10月12日 13:24 LICENSE-EMSCRIPTEN.txt
+-rw-rw-r-- 1 archivalera archivalera    15141 10月12日 13:24 LICENSE-LLVM.txt
+-rw-rw-r-- 1 archivalera archivalera    72686 10月12日 13:24 lld.js
+-rwxrwxr-x 1 archivalera archivalera 33358910 10月12日 13:24 lld.wasm
+-rw-rw-r-- 1 archivalera archivalera     4596 10月12日 13:27 manifest.json
+-rw-rw-r-- 1 archivalera archivalera 20623360 10月12日 13:24 sysroot-headers.tar

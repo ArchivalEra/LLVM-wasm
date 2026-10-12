@@ -1,0 +1,37 @@
+bundle: /mnt/hdd/zcode-projects/LLVM-wasm/release/out
+manifest: 12 assets, generated 2026-10-12T13:31:45+0800
+
+== SPEC §2: every asset carries name + bytes + sha256 + license ==
+PASS all assets have the four required fields: 12 assets
+PASS clang.wasm is NOT AGPL (LLVM terms instead): Apache-2.0 WITH LLVM-exception
+PASS the lld wasm is NOT AGPL: lld-wasm-only.wasm: Apache-2.0 WITH LLVM-exception
+PASS AGPL stays on this repo's own files: AGPL-3.0-or-later (this repo)
+
+== SPEC §8: toolchain + host-baseline version strings are recorded ==
+PASS toolchain version string present: emcc (Emscripten gcc/clang-like replacement + linker emulati
+PASS host baseline records the four contract axes: {"e":"wasm-legacy","p":true,"m":false,"mm":2}
+
+== SPEC §9.10: load only what verifies ==
+PASS clang.wasm verifies against manifest
+PASS lld-wasm-only.wasm verifies against manifest
+PASS sysroot-headers.tar verifies against manifest
+
+== consume: compile using only the bundle ==
+PASS compile() succeeds from the bundle alone
+PASS product exports minifn: __wasm_call_ctors,_emscripten_tls_init,minifn
+PASS product is relocatable (__memory_base imported)
+   976 bytes
+
+== SPEC §6: first-pull budget ==
+PASS first_load breakdown is recorded: ["clang.wasm","sysroot-headers.tar","clang.js"]
+PASS first pull <= 15 MB (brotli): 14,365,662 bytes (14.37 MB)
+   total incl. lazy lld: 22.86 MB
+-- artifacts
+ARTIFACT release_acceptance_pass 14
+
+=== ALL PASS ===
+ARTIFACT release_assets 12
+ARTIFACT release_clang_wasm 48069274
+ARTIFACT release_lld_wasm 33358910
+ARTIFACT release_first_load_brotli 14365662
+ARTIFACT release_total_brotli 22860965

@@ -145,6 +145,7 @@ def driver_inputs_cmd():
 
 BROWSER_LOG = repo("browser/evidence/browser.log")
 LOOP_LOG = repo("browser/evidence/loop.log")
+RELEASE_LOG = repo("release/evidence/check-release.log")
 
 BROWSER_INPUTS = ("browser/worker.mjs", "browser/index.html", "browser/check-browser.mjs")
 
@@ -426,6 +427,14 @@ def measure_facts():
              "闭环里编出的 side module 字节数（M0 完整夹具，对比 [[m0_wasm32_side_bytes]]）"),
             ("browser_host_wasm", LOOP_LOG,
              "浏览器宿主主模块的 wasm 字节数（dlopen 那半的宿主）"),
+            ("release_acceptance_pass", RELEASE_LOG,
+             "交付包验收 PASS 数（自足性 / 许可证分档 / §8 版本串 / §6 预算）"),
+            ("release_assets", RELEASE_LOG,
+             "交付包资产数（manifest.json 的 assets 条目）"),
+            ("release_first_load_brotli", RELEASE_LOG,
+             "首拉 brotli（SPEC §6 预算口径，≤ 15,000,000）"),
+            ("release_total_brotli", RELEASE_LOG,
+             "含 lld 的 brotli 总量（lld 是懒加载分片）"),
             ("browser_acceptance_pass", "../browser/evidence/browser.log",
              "真实浏览器（Chromium）验收 PASS 数：Worker 编译 + §9.8 纯客户端"),
             ("browser_module_basic_bytes", "../browser/evidence/browser.log",
@@ -560,6 +569,18 @@ def measure_facts():
                 "| grep -oE '%s [0-9]+' | head -1 | grep -oE '[0-9]+$'"
                 % ("clang" if name == "clang_major" else "wasm-ld", vers),
                 "toolchain", "SPEC §4.2 的旗标随这个版本漂")
+
+    # ── 翻案台账条数（便宜：数 JSON）────────────────────────────────────────
+    rp = repo("retractions.json")
+    if os.path.exists(rp):
+        try:
+            import json as _json                               # noqa: PLC0415
+            n = len(_json.load(open(rp, encoding="utf-8")).get("retractions", []))
+            facts["retractions_count"] = fact(
+                n, "python3 -c \"import json;print(len(json.load(open('retractions.json'))['retractions']))\"",
+                "repo", "翻案台账条数（被推翻的断言不许悄悄回来）")
+        except Exception:
+            pass                                               # 读不到就不写（宁缺勿假）
 
     # ── 闸门数（发现式名录，便宜；机制层不在就不写）────────────────────────
     if os.path.isdir(repo("zreflect")):

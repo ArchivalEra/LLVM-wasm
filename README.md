@@ -78,6 +78,10 @@ node browser/check-browser.mjs
 # M2：浏览器闭环（编译 → dlopen，§9.1–9.4）
 bash browser/build-host.sh
 node browser/check-loop.mjs
+
+# 交付包：生成 + 以消费方身份验收（§2 交付物 / §9.10 / §6 预算）
+bash release/make-release.sh
+node release/check-release.mjs
 M1_BUNDLE=1 node driver/acceptance-driver.mjs  # 交付路径：只从 tar 编译
 
 # M2：打包 sysroot（实测构成 + manifest + sha256）
@@ -129,7 +133,8 @@ python3 toolchain/emsdk/emsdk.py install <版本> && python3 toolchain/emsdk/ems
 | `m0/` | M0 验证链：夹具、runner、证据日志、RESULTS.md |
 | `m1/` | M1 构建与验收：把 clang/lld 编成 wasm，wasm 内全链验收 |
 | `driver/` | M2 薄驱动：`compile()` 接口 + §5.4 缺口检查 + §9.10 fail-closed |
-| `browser/` | M2 浏览器验收：Worker + 纯客户端证据（§7.3/§9.8） |
+| `browser/` | M2 浏览器验收：Worker 编译 + 闭环 dlopen（§7.3/§9.1–9.4/§9.8） |
+| `release/` | 交付包：manifest + 许可证分档 + 消费方验收（§2/§8/§9.10） |
 | `package/` | M2 交付打包：sysroot tar + manifest |
 | `zreflect/` | Einfacht 机制层（vendored）：闸门 / 台账 / 渲染 |
 | `reflect-hooks/` | git 钩子与旋钮载体 `Einfacht.env` |
@@ -138,3 +143,4 @@ python3 toolchain/emsdk/emsdk.py install <版本> && python3 toolchain/emsdk/ems
 | `STATE.md` | 活状态（正文 + 文末机器块） |
 | `FACTS.json` | 事实台账：数字的唯一产地 |
 | `retractions.json` | 翻案台账 |
+| `DELIVERY.md` | 交付说明：下游怎么 pin、怎么接、宿主须承诺什么 |
