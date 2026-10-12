@@ -114,9 +114,32 @@ const badAbi = await tc.compile({ source: SOURCE, abi: { exceptions: 'nonsense' 
 check('unknown abi.exceptions is refused', badAbi.ok === false,
       badAbi.ok ? 'ACCEPTED A BAD ABI' : badAbi.error);
 
-const badTarget = await tc.compile({ source: SOURCE, target: 'wasm64' });
-check('unbuilt target wasm64 is refused (not silently wasm32)',
-      badTarget.ok === false, badTarget.ok ? 'SILENTLY DOWNGRADED' : badTarget.error);
+// wasm64 used to be refused outright (the target existed but nothing had been
+// exercised). It now works when the sysroot can serve it — and the refusal
+// moved to exactly that condition: a sysroot without the arch's crt must be
+// refused rather than silently producing a module lacking _emscripten_tls_init
+// (issue #1). This directory-based Toolchain HAS both crts, so wasm64 must
+// succeed here, and must be genuinely 64-bit.
+const t64 = await tc.compile({ source: SOURCE, target: 'wasm64',
+  abi: { exceptions: 'wasm-legacy', pthread: true, memory64: true } });
+if (useBundle && !tc.targetsAvailable().includes('wasm64')) {
+  // A single-tar bundle (wasm32 only) must REFUSE wasm64 rather than produce a
+  // module without the TLS entry -- that refusal is issue #1's central ask.
+  check('single-tar bundle refuses wasm64 (instead of a TLS-less module)',
+        t64.ok === false && /sysroot for wasm64/i.test(t64.error || ''),
+        t64.ok ? `IT RETURNED ok:true (${t64.moduleBytes.length} B)` : t64.error.slice(0, 80));
+} else {
+  check('target wasm64 compiles when the sysroot serves it', t64.ok === true,
+        t64.ok ? '' : t64.error);
+  if (t64.ok) {
+    const ex = WebAssembly.Module.exports(new WebAssembly.Module(t64.moduleBytes)).map((e) => e.name);
+    check('wasm64 product carries the TLS entry', ex.includes('_emscripten_tls_init'), ex.join(','));
+  }
+}
+// A nonsense target must still be refused by name.
+const badName = await tc.compile({ source: SOURCE, target: 'wasm128' });
+check('unknown target wasm128 is refused', badName.ok === false,
+      badName.ok ? 'ACCEPTED A NONSENSE TARGET' : badName.error);
 
 const noInput = await tc.compile({});
 check('no source and no files is refused', noInput.ok === false,

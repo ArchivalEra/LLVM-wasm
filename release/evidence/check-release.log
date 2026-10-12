@@ -1,8 +1,11 @@
 bundle: /mnt/hdd/zcode-projects/LLVM-wasm/release/out
-manifest: 12 assets, generated 2026-10-12T13:31:45+0800
+manifest: 13 assets, generated 2026-10-12T15:12:30+0800
 
 == SPEC §2: every asset carries name + bytes + sha256 + license ==
-PASS all assets have the four required fields: 12 assets
+PASS all assets have the four required fields: 13 assets
+PASS manifest declares a sysroot per built target: {"wasm32":"sysroot-headers.tar","wasm64":"sysroot-headers.wasm64.tar"}
+PASS sysroot for wasm32 is present in the bundle (sysroot-headers.tar)
+PASS sysroot for wasm64 is present in the bundle (sysroot-headers.wasm64.tar)
 PASS clang.wasm is NOT AGPL (LLVM terms instead): Apache-2.0 WITH LLVM-exception
 PASS the lld wasm is NOT AGPL: lld-wasm-only.wasm: Apache-2.0 WITH LLVM-exception
 PASS AGPL stays on this repo's own files: AGPL-3.0-or-later (this repo)
@@ -15,23 +18,35 @@ PASS host baseline records the four contract axes: {"e":"wasm-legacy","p":true,"
 PASS clang.wasm verifies against manifest
 PASS lld-wasm-only.wasm verifies against manifest
 PASS sysroot-headers.tar verifies against manifest
+PASS sysroot-headers.wasm64.tar verifies against manifest
+PASS sysroot-headers.tar carries lib/wasm32-emscripten/pic/crtbegin-mt.o
+PASS sysroot-headers.wasm64.tar carries lib/wasm64-emscripten/pic/crtbegin-mt.o
 
 == consume: compile using only the bundle ==
-PASS compile() succeeds from the bundle alone
-PASS product exports minifn: __wasm_call_ctors,_emscripten_tls_init,minifn
-PASS product is relocatable (__memory_base imported)
-   976 bytes
+PASS compile(wasm32) succeeds from the bundle alone
+PASS wasm32: product exports minifn: __wasm_call_ctors,_emscripten_tls_init,minifn
+PASS wasm32: product is relocatable (__memory_base imported)
+PASS wasm32: product exports _emscripten_tls_init (TLS entry present)
+   wasm32: 976 bytes
+PASS compile(wasm64) succeeds from the bundle alone
+PASS wasm64: product exports minifn: __wasm_call_ctors,_emscripten_tls_init,minifn
+PASS wasm64: product is relocatable (__memory_base imported)
+PASS wasm64: product exports _emscripten_tls_init (TLS entry present)
+   wasm64: 994 bytes
+
+== the refusal: a bundle without the target's sysroot must not claim ok ==
+PASS wasm32-only bundle refuses target wasm64: sysroot for wasm64 is missing in this toolchain's sysroot source (available: wasm32). Refu
+PASS the refusal names the missing sysroot: sysroot for wasm64 is missing in this toolchain's sysroot source (available: wasm32). Refu
 
 == SPEC §6: first-pull budget ==
-PASS first_load breakdown is recorded: ["clang.wasm","sysroot-headers.tar","clang.js"]
+PASS first_load breakdown is recorded: ["clang.wasm","clang.js","sysroot-headers.tar"]
 PASS first pull <= 15 MB (brotli): 14,365,662 bytes (14.37 MB)
    total incl. lazy lld: 22.86 MB
 -- artifacts
-ARTIFACT release_acceptance_pass 14
-
-=== ALL PASS ===
-ARTIFACT release_assets 12
-ARTIFACT release_clang_wasm 48069274
-ARTIFACT release_lld_wasm 33358910
+ARTIFACT release_acceptance_pass 27
+ARTIFACT release_assets 13
 ARTIFACT release_first_load_brotli 14365662
 ARTIFACT release_total_brotli 22860965
+ARTIFACT release_targets 2
+
+=== ALL PASS ===

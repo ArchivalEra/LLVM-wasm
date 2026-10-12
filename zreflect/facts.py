@@ -146,6 +146,7 @@ def driver_inputs_cmd():
 BROWSER_LOG = repo("browser/evidence/browser.log")
 LOOP_LOG = repo("browser/evidence/loop.log")
 RELEASE_LOG = repo("release/evidence/check-release.log")
+W64_LOG = repo("release/evidence/wasm64-e2e.log")
 
 BROWSER_INPUTS = ("browser/worker.mjs", "browser/index.html", "browser/check-browser.mjs")
 
@@ -435,6 +436,10 @@ def measure_facts():
              "首拉 brotli（SPEC §6 预算口径，≤ 15,000,000）"),
             ("release_total_brotli", RELEASE_LOG,
              "含 lld 的 brotli 总量（lld 是懒加载分片）"),
+            ("wasm64_release_e2e_bytes", W64_LOG,
+             "从发布包编出的 wasm64 产物字节数（issue #1 的闭环）"),
+            ("wasm64_release_e2e_pass", W64_LOG,
+             "同一产物在真 wasm64 宿主里的 dlopen 验收 PASS 数"),
             ("browser_acceptance_pass", "../browser/evidence/browser.log",
              "真实浏览器（Chromium）验收 PASS 数：Worker 编译 + §9.8 纯客户端"),
             ("browser_module_basic_bytes", "../browser/evidence/browser.log",
