@@ -206,5 +206,14 @@ print(f"ARTIFACT release_first_load_brotli {man['first_load']['brotli_bytes']}")
 print(f"ARTIFACT release_total_brotli {man['first_load']['plus_lld_brotli_bytes']}")
 PY
 
+# ------------------------------------------------- the content-list (seam record)
+# One producer, two outputs: this derives the seam record from the manifest we
+# just wrote, so no number in it is a second transcription. Committed at
+# release/content-list.json (tracked); the bundle carries the same file so it
+# travels with the bytes it describes.
+node "$ROOT/release/make-content-list.mjs" "$OUT" "$OUT/content-list.json" \
+  --pin "${CONTENT_LIST_PIN:-$(cd "$ROOT" && git describe --tags --always 2>/dev/null || echo unknown)}"
+cp "$OUT/content-list.json" "$ROOT/release/content-list.json"
+
 echo "== bundle at $OUT =="
 ls -la "$OUT"

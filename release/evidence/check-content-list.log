@@ -1,0 +1,45 @@
+record: /mnt/hdd/zcode-projects/LLVM-wasm/release/content-list.json
+bundle: /mnt/hdd/zcode-projects/LLVM-wasm/release/out
+
+== schema 2 required fields ==
+PASS schema is 2: 2
+PASS producer has id and pin: LLVM-wasm @ v0.1.2
+PASS octave is present: 11.3.0
+PASS entries is a non-empty array: 13 entries
+PASS every entry has name/version/url/sha256/form: all present
+
+== names identify one thing each ==
+PASS entry names are unique: 13 unique
+
+== every entry matches the bytes ==
+PASS llvm-wasm-clang.wasm: 48069274 B
+PASS llvm-wasm-lld-wasm-only.wasm: 33358910 B
+PASS llvm-wasm-sysroot-headers.tar: 20654080 B
+PASS llvm-wasm-sysroot-headers.wasm64.tar: 20654080 B
+PASS llvm-wasm-clang.js: 76240 B
+PASS llvm-wasm-lld-wasm-only.js: 72686 B
+PASS llvm-wasm-driver-toolchain.mjs: 13092 B
+PASS llvm-wasm-driver-abi.mjs: 7209 B
+PASS llvm-wasm-driver-tar-reader.mjs: 1782 B
+PASS llvm-wasm-driver-sysroot-bundle.mjs: 2621 B
+PASS llvm-wasm-LICENSE: 34523 B
+PASS llvm-wasm-LICENSE-LLVM.txt: 15141 B
+PASS llvm-wasm-LICENSE-EMSCRIPTEN.txt: 5093 B
+
+== record and manifest agree (one producer) ==
+PASS no entry contradicts the manifest: 13 checked
+
+== form is derived from the bytes, not the name ==
+PASS llvm-wasm-clang.wasm: a real wasm module: form=file
+PASS llvm-wasm-lld-wasm-only.wasm: a real wasm module: form=file
+PASS llvm-wasm-sysroot-headers.tar: a real tar: form=tree
+PASS llvm-wasm-sysroot-headers.wasm64.tar: a real tar: form=tree
+
+== variants point at entries that exist ==
+PASS variant wasm32 -> llvm-wasm-sysroot-headers.tar
+PASS variant wasm64 -> llvm-wasm-sysroot-headers.wasm64.tar
+-- artifacts
+ARTIFACT content_list_check_pass 26
+ARTIFACT content_list_entries_verified 13
+
+=== ALL PASS ===

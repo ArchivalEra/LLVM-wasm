@@ -65,6 +65,30 @@ CRT="$SR/$LIBDIR/pic/crtbegin-mt.o"
 [ -f "$CRT" ] || { echo "FATAL: $CRT missing (run one compile of this target first)"; exit 2; }
 cp -a "$CRT" "$STAGE/sysroot/$LIBDIR/pic/"
 
+# ------------------------------------------------------------ licence notices
+# The tar ships 1,578 files of which 442 carry no licence statement of their own
+# (measured; libc++ headers have SPDX lines, emscripten's musl-derived headers
+# mostly do not). MIT/NCSA require the notice to travel with the distribution,
+# so a tar handed to a consumer without these files leaves the recipient unable
+# to tell what the contents are licensed under. Three files fix it, and NOTICE
+# says which part maps to which licence.
+cp "$ROOT/LICENSE-LLVM.txt" "$STAGE/sysroot/LICENSE-LLVM.txt"
+cp "$ROOT/LICENSE-EMSCRIPTEN.txt" "$STAGE/sysroot/LICENSE-EMSCRIPTEN.txt"
+cat > "$STAGE/sysroot/NOTICE" <<'NOTICE'
+This sysroot subset is derived from the Emscripten SDK.
+
+  include/c++/v1/            libc++            Apache-2.0 WITH LLVM-exception
+                             (most files carry an SPDX-License-Identifier line)
+  include/ (the rest)        Emscripten / musl  MIT or University of Illinois/NCSA
+  include/SDL/               SDL                zlib licence (see COPYING there)
+  lib/<target>-emscripten/pic/crtbegin-mt.o
+                             compiler-rt       Apache-2.0 WITH LLVM-exception
+
+Full texts: LICENSE-LLVM.txt (LLVM), LICENSE-EMSCRIPTEN.txt (Emscripten).
+Files without an inline notice are covered by the corresponding text above.
+NOTICE
+
+
 # ---------------------------------------------------------------- the archive
 mkdir -p "$OUT"
 TAR="$OUT/sysroot-$ARCH.tar"

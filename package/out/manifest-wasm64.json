@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "generated": "2026-10-10T23:15:19+0800",
+ "generated": "2026-10-14T19:14:47+0800",
  "_why": "SPEC 2/9.10: every asset carries bytes + sha256 so the loader can fail closed. Numbers here are measured at package time.",
  "toolchain": {
   "emcc": "emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.12 (5488e0871d46d19a3209988190fa6a653126256f)",
@@ -10,9 +10,9 @@
  "assets": [
   {
    "name": "sysroot-wasm64.tar",
-   "bytes": 20623360,
-   "sha256": "f64833f92cb4c9787c1dfd1f3c67f3e33e36ef3c394cdb7626b13f620c83a279",
-   "brotli_bytes": 1675769,
+   "bytes": 20654080,
+   "sha256": "8d82242177651dc4c1108c1aae61a704a9f01c409cfd5b24eb6ba79a1cff0c97",
+   "brotli_bytes": 1680565,
    "contains": {
     "headers": 1577,
     "pic_objects": 1,

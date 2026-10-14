@@ -2,8 +2,8 @@
 manifest: /mnt/hdd/zcode-projects/LLVM-wasm/release/out/manifest.json
   clang.wasm                     48069274 brotli=12614129  Apache-2.0 WITH LLVM-exception
   lld-wasm-only.wasm             33358910 brotli=8495303  Apache-2.0 WITH LLVM-exception
-  sysroot-headers.tar            20623360 brotli=1675293  mixed (see LICENSE-LLVM.txt, LICENSE-EMSCRIPTEN.txt)
-  sysroot-headers.wasm64.tar     20623360 brotli=1675769  mixed (see LICENSE-LLVM.txt, LICENSE-EMSCRIPTEN.txt)
+  sysroot-headers.tar            20654080 brotli=1680675  mixed (see LICENSE-LLVM.txt, LICENSE-EMSCRIPTEN.txt)
+  sysroot-headers.wasm64.tar     20654080 brotli=1680565  mixed (see LICENSE-LLVM.txt, LICENSE-EMSCRIPTEN.txt)
   clang.js                          76240  MIT OR NCSA (Emscripten)
   lld-wasm-only.js                  72686  MIT OR NCSA (Emscripten)
   driver/toolchain.mjs              13092  AGPL-3.0-or-later (this repo)
@@ -17,20 +17,37 @@ manifest: /mnt/hdd/zcode-projects/LLVM-wasm/release/out/manifest.json
 ARTIFACT release_assets 13
 ARTIFACT release_clang_wasm 48069274
 ARTIFACT release_lld_wasm 33358910
-ARTIFACT release_first_load_brotli 14365662
-ARTIFACT release_total_brotli 22860965
+ARTIFACT release_first_load_brotli 14371044
+ARTIFACT release_total_brotli 22866347
+content-list: /mnt/hdd/zcode-projects/LLVM-wasm/release/out/content-list.json (13 entries)
+  llvm-wasm-clang.wasm                 48069274  file  Apache-2.0 WITH LLVM-exception
+  llvm-wasm-lld-wasm-only.wasm         33358910  file  Apache-2.0 WITH LLVM-exception
+  llvm-wasm-sysroot-headers.tar        20654080  tree  mixed
+  llvm-wasm-sysroot-headers.wasm64.tar   20654080  tree  mixed
+  llvm-wasm-clang.js                      76240  js    MIT OR NCSA
+  llvm-wasm-lld-wasm-only.js              72686  js    MIT OR NCSA
+  llvm-wasm-driver-toolchain.mjs          13092  file  AGPL-3.0-or-later
+  llvm-wasm-driver-abi.mjs                 7209  file  AGPL-3.0-or-later
+  llvm-wasm-driver-tar-reader.mjs          1782  file  AGPL-3.0-or-later
+  llvm-wasm-driver-sysroot-bundle.mjs       2621  file  AGPL-3.0-or-later
+  llvm-wasm-LICENSE                       34523  file  AGPL-3.0-or-later
+  llvm-wasm-LICENSE-LLVM.txt              15141  file  Apache-2.0 WITH LLVM-exception
+  llvm-wasm-LICENSE-EMSCRIPTEN.txt         5093  file  MIT OR NCSA
+
+ARTIFACT content_list_entries 13
 == bundle at /mnt/hdd/zcode-projects/LLVM-wasm/release/out ==
-总计 120024
-drwxrwxr-x 3 archivalera archivalera     4096 10月12日 15:15 .
-drwxrwxr-x 4 archivalera archivalera      177 10月12日 15:12 ..
--rw-rw-r-- 1 archivalera archivalera    76240 10月12日 15:12 clang.js
--rwxrwxr-x 1 archivalera archivalera 48069274 10月12日 15:12 clang.wasm
-drwxrwxr-x 2 archivalera archivalera       90 10月12日 15:12 driver
--rw-rw-r-- 1 archivalera archivalera    34523 10月12日 15:12 LICENSE
--rw-r--r-- 1 archivalera archivalera     5093 10月12日 15:12 LICENSE-EMSCRIPTEN.txt
--rw-rw-r-- 1 archivalera archivalera    15141 10月12日 15:12 LICENSE-LLVM.txt
--rw-rw-r-- 1 archivalera archivalera    72686 10月12日 15:12 lld-wasm-only.js
--rwxrwxr-x 1 archivalera archivalera 33358910 10月12日 15:12 lld-wasm-only.wasm
--rw-rw-r-- 1 archivalera archivalera     5329 10月12日 15:15 manifest.json
--rw-rw-r-- 1 archivalera archivalera 20623360 10月12日 15:12 sysroot-headers.tar
--rw-rw-r-- 1 archivalera archivalera 20623360 10月12日 15:12 sysroot-headers.wasm64.tar
+总计 120100
+drwxrwxr-x 3 archivalera archivalera     4096 10月14日 19:34 .
+drwxrwxr-x 4 archivalera archivalera     4096 10月14日 19:30 ..
+-rw-rw-r-- 1 archivalera archivalera    76240 10月14日 19:30 clang.js
+-rwxrwxr-x 1 archivalera archivalera 48069274 10月14日 19:30 clang.wasm
+-rw-rw-r-- 1 archivalera archivalera     5548 10月14日 19:34 content-list.json
+drwxrwxr-x 2 archivalera archivalera       90 10月14日 19:30 driver
+-rw-rw-r-- 1 archivalera archivalera    34523 10月14日 19:30 LICENSE
+-rw-r--r-- 1 archivalera archivalera     5093 10月14日 19:30 LICENSE-EMSCRIPTEN.txt
+-rw-rw-r-- 1 archivalera archivalera    15141 10月14日 19:30 LICENSE-LLVM.txt
+-rw-rw-r-- 1 archivalera archivalera    72686 10月14日 19:30 lld-wasm-only.js
+-rwxrwxr-x 1 archivalera archivalera 33358910 10月14日 19:30 lld-wasm-only.wasm
+-rw-rw-r-- 1 archivalera archivalera     5329 10月14日 19:34 manifest.json
+-rw-rw-r-- 1 archivalera archivalera 20654080 10月14日 19:30 sysroot-headers.tar
+-rw-rw-r-- 1 archivalera archivalera 20654080 10月14日 19:30 sysroot-headers.wasm64.tar

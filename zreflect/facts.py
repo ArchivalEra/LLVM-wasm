@@ -147,6 +147,8 @@ BROWSER_LOG = repo("browser/evidence/browser.log")
 LOOP_LOG = repo("browser/evidence/loop.log")
 RELEASE_LOG = repo("release/evidence/check-release.log")
 W64_LOG = repo("release/evidence/wasm64-e2e.log")
+CL_LOG = repo("release/evidence/check-content-list.log")
+MAKE_LOG = repo("release/evidence/make-release.log")
 
 BROWSER_INPUTS = ("browser/worker.mjs", "browser/index.html", "browser/check-browser.mjs")
 
@@ -440,6 +442,10 @@ def measure_facts():
              "从发布包编出的 wasm64 产物字节数（issue #1 的闭环）"),
             ("wasm64_release_e2e_pass", W64_LOG,
              "同一产物在真 wasm64 宿主里的 dlopen 验收 PASS 数"),
+            ("content_list_entries", MAKE_LOG,
+             "content-list（接缝 schema 2）条目数 —— 给内容收口方的记录"),
+            ("content_list_check_pass", CL_LOG,
+             "记录自洽性检查 PASS 数（**不是**宿主校验器；见 mail/002 A2）"),
             ("browser_acceptance_pass", "../browser/evidence/browser.log",
              "真实浏览器（Chromium）验收 PASS 数：Worker 编译 + §9.8 纯客户端"),
             ("browser_module_basic_bytes", "../browser/evidence/browser.log",

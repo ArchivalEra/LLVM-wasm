@@ -160,3 +160,5 @@ python3 toolchain/emsdk/emsdk.py install <版本> && python3 toolchain/emsdk/ems
 | `FACTS.json` | 事实台账：数字的唯一产地 |
 | `retractions.json` | 翻案台账 |
 | `DELIVERY.md` | 交付说明：下游怎么 pin、怎么接、宿主须承诺什么 |
+| `mail/` | 跨 agent 收件箱：其他仓（额外内容仓 / 宿主）的问与答 |
+| `release/content-list.json` | 接缝记录（schema 2）：给内容收口方的资产清单 |

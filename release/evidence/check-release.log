@@ -1,5 +1,5 @@
 bundle: /mnt/hdd/zcode-projects/LLVM-wasm/release/out
-manifest: 13 assets, generated 2026-10-12T15:12:30+0800
+manifest: 13 assets, generated 2026-10-14T19:26:51+0800
 
 == SPEC §2: every asset carries name + bytes + sha256 + license ==
 PASS all assets have the four required fields: 13 assets
@@ -40,13 +40,13 @@ PASS the refusal names the missing sysroot: sysroot for wasm64 is missing in thi
 
 == SPEC §6: first-pull budget ==
 PASS first_load breakdown is recorded: ["clang.wasm","clang.js","sysroot-headers.tar"]
-PASS first pull <= 15 MB (brotli): 14,365,662 bytes (14.37 MB)
-   total incl. lazy lld: 22.86 MB
+PASS first pull <= 15 MB (brotli): 14,371,044 bytes (14.37 MB)
+   total incl. lazy lld: 22.87 MB
 -- artifacts
 ARTIFACT release_acceptance_pass 27
 ARTIFACT release_assets 13
-ARTIFACT release_first_load_brotli 14365662
-ARTIFACT release_total_brotli 22860965
+ARTIFACT release_first_load_brotli 14371044
+ARTIFACT release_total_brotli 22866347
 ARTIFACT release_targets 2
 
 === ALL PASS ===
