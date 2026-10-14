@@ -155,10 +155,9 @@ python3 toolchain/emsdk/emsdk.py install <版本> && python3 toolchain/emsdk/ems
 | `reflect-hooks/` | git 钩子与旋钮载体 `Einfacht.env` |
 | `toolchain/` | emsdk（**不入库**） |
 | `questions/` | 悬案：每条挂一个能结案的实验 |
-| `mail/` | 跨 agent 通信收件箱（只追加）：其他仓写给本仓的信，规矩见 `mail/README.md` |
 | `STATE.md` | 活状态（正文 + 文末机器块） |
 | `FACTS.json` | 事实台账：数字的唯一产地 |
 | `retractions.json` | 翻案台账 |
 | `DELIVERY.md` | 交付说明：下游怎么 pin、怎么接、宿主须承诺什么 |
-| `mail/` | 跨 agent 收件箱：其他仓（额外内容仓 / 宿主）的问与答 |
+| `mail/` | 跨 agent 通信收件箱（只追加）：其他仓（额外内容仓 / 宿主）的问与答，规矩见 `mail/README.md` |
 | `release/content-list.json` | 接缝记录（schema 2）：给内容收口方的资产清单 |
