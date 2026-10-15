@@ -37,17 +37,17 @@ content-list: /mnt/hdd/zcode-projects/LLVM-wasm/release/out/content-list.json (1
 ARTIFACT content_list_entries 13
 == bundle at /mnt/hdd/zcode-projects/LLVM-wasm/release/out ==
 总计 120100
-drwxrwxr-x 3 archivalera archivalera     4096 10月14日 19:34 .
-drwxrwxr-x 4 archivalera archivalera     4096 10月14日 19:30 ..
--rw-rw-r-- 1 archivalera archivalera    76240 10月14日 19:30 clang.js
--rwxrwxr-x 1 archivalera archivalera 48069274 10月14日 19:30 clang.wasm
--rw-rw-r-- 1 archivalera archivalera     5548 10月14日 19:34 content-list.json
-drwxrwxr-x 2 archivalera archivalera       90 10月14日 19:30 driver
--rw-rw-r-- 1 archivalera archivalera    34523 10月14日 19:30 LICENSE
--rw-r--r-- 1 archivalera archivalera     5093 10月14日 19:30 LICENSE-EMSCRIPTEN.txt
--rw-rw-r-- 1 archivalera archivalera    15141 10月14日 19:30 LICENSE-LLVM.txt
--rw-rw-r-- 1 archivalera archivalera    72686 10月14日 19:30 lld-wasm-only.js
--rwxrwxr-x 1 archivalera archivalera 33358910 10月14日 19:30 lld-wasm-only.wasm
--rw-rw-r-- 1 archivalera archivalera     5329 10月14日 19:34 manifest.json
--rw-rw-r-- 1 archivalera archivalera 20654080 10月14日 19:30 sysroot-headers.tar
--rw-rw-r-- 1 archivalera archivalera 20654080 10月14日 19:30 sysroot-headers.wasm64.tar
+drwxrwxr-x 3 archivalera archivalera     4096 10月15日 14:34 .
+drwxrwxr-x 4 archivalera archivalera     4096 10月15日 14:31 ..
+-rw-rw-r-- 1 archivalera archivalera    76240 10月15日 14:31 clang.js
+-rwxrwxr-x 1 archivalera archivalera 48069274 10月15日 14:31 clang.wasm
+-rw-rw-r-- 1 archivalera archivalera     6746 10月15日 14:34 content-list.json
+drwxrwxr-x 2 archivalera archivalera       90 10月15日 14:31 driver
+-rw-rw-r-- 1 archivalera archivalera    34523 10月15日 14:31 LICENSE
+-rw-r--r-- 1 archivalera archivalera     5093 10月15日 14:31 LICENSE-EMSCRIPTEN.txt
+-rw-rw-r-- 1 archivalera archivalera    15141 10月15日 14:31 LICENSE-LLVM.txt
+-rw-rw-r-- 1 archivalera archivalera    72686 10月15日 14:31 lld-wasm-only.js
+-rwxrwxr-x 1 archivalera archivalera 33358910 10月15日 14:31 lld-wasm-only.wasm
+-rw-rw-r-- 1 archivalera archivalera     5329 10月15日 14:34 manifest.json
+-rw-rw-r-- 1 archivalera archivalera 20654080 10月15日 14:31 sysroot-headers.tar
+-rw-rw-r-- 1 archivalera archivalera 20654080 10月15日 14:31 sysroot-headers.wasm64.tar

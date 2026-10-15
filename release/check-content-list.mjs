@@ -117,6 +117,30 @@ for (const [arch, v] of Object.entries(rec.variants || {})) {
         names.includes(v.sysroot) ? '' : 'no such entry');
 }
 
+// ------------------------------------------------- the host's validator, if present
+// The gap this closes: everything above checks the record against ITSELF and
+// against the manifest, and all of it passed while the host's validator
+// rejected all 13 entries (content enum + producer id). A self-check cannot
+// see a contract it does not know about. This step runs the real thing when the
+// host repo is on this machine, and says plainly when it is not -- it is not
+// vendored here, because a copy would be a second producer of the same rules.
+console.log('\n== the host validator (external contract) ==');
+const HOST_VALIDATOR = process.env.CONTENT_VALIDATOR
+  || '/mnt/hdd/zcode-projects/Octave-Full-Wasm/build/extra-content/validate-content-list.py';
+if (!existsSync(HOST_VALIDATOR)) {
+  console.log(`   SKIP: no validator at ${HOST_VALIDATOR}`);
+  console.log("   (set CONTENT_VALIDATOR=<path>; this is the port's contract, not ours to copy)");
+} else {
+  const { spawnSync } = await import('child_process');
+  for (const mode of [['--producer', 'llvm-wasm'], ['--site']]) {
+    const r = spawnSync('python3', [HOST_VALIDATOR, '--list', RECORD, ...mode], { encoding: 'utf8' });
+    const out = (r.stdout || '') + (r.stderr || '');
+    const ok = r.status === 0;
+    check(`host validator ${mode.join(' ')}`, ok,
+          ok ? out.trim().split('\n').pop() : out.trim().split('\n').slice(0, 4).join(' | '));
+  }
+}
+
 console.log('-- artifacts');
 console.log(`ARTIFACT content_list_check_pass ${passCount}`);
 console.log(`ARTIFACT content_list_entries_verified ${rec.entries.length}`);

@@ -7,11 +7,22 @@
 // the sha256 / bytes / licence in the record are the manifest's, not a second
 // transcription of them. make-release.sh runs it right after writing manifest.
 //
-// Fields we do NOT invent: `form` and `content` are derived from the bytes (the
-// letter's §2 judgment 2: "供给方从字节派生，不是作者手写"). `url` is a SITE
-// RELATIVE path per schema 2 -- the assets are currently GitHub release
-// attachments, which are not same-origin, so the path is a REQUEST to whoever
-// collects content (see the reply for why that matters).
+// Fields we do NOT invent: `form` is derived from the bytes (the letter's §2
+// judgment 2: "供给方从字节派生，不是作者手写").
+//
+// `content` is `[]` on every entry here, and that is the host's ruling, not a
+// gap: the schema says content means "which kinds of source a package holds"
+// (m/src/oct) and that capability-layer entries (form:"tree") leave it empty,
+// because forcing wasm/js into that enum turns the axis into a catch-all
+// (2026-10-14, answering the content repo's mail/007). An earlier version of
+// this script put ["wasm","module"] there and the host validator rejected all
+// 13 entries -- the ruling postdates that guess.
+//
+// `url` is the DELIVERY path (site-relative, a request to whoever assembles the
+// site); `upstream_url` is where the bytes live today, which is the release
+// attachment. The schema accepts both in producer mode and only requires
+// same-origin in --site mode, so nothing here pretends the bytes are already
+// on the content host.
 //
 // Usage: node release/make-content-list.mjs <bundle-dir> <out.json> [--pin <ref>]
 import { readFileSync, writeFileSync, existsSync } from 'fs';
@@ -80,11 +91,20 @@ function deriveForm(filePath, name) {
 // ordinary entry, all in one deps graph. See the reply, A2, for the alternative
 // if the collector prefers one entry and is willing to take (a)-(c) on board.
 const SITE_PREFIX = 'assets/llvm-wasm/';
+// Where the bytes are RETRIEVABLE from today: the release bundle. Note this is
+// one URL for all thirteen entries -- the individual files are not separate
+// release assets, they live inside the bundle. Writing a per-file
+// .../download/<tag>/<file> URL would look tidier and 404 (the release carries
+// only llvm-wasm-bundle-<tag>.tar.gz and manifest.json). A record whose
+// upstream_url does not resolve is the same class of error as a pin that names
+// a release which does not exist.
+const UPSTREAM_BUNDLE = process.env.CONTENT_UPSTREAM_BUNDLE
+  || 'https://github.com/ArchivalEra/LLVM-wasm/releases/download/v0.1.2/llvm-wasm-bundle-v0.1.2.tar.gz';
 const entries = [];
 for (const a of man.assets) {
   const p = join(bundleDir, a.name);
   if (!existsSync(p)) { console.error(`FATAL: manifest lists ${a.name} but it is not in ${bundleDir}`); process.exit(2); }
-  const { form, content } = deriveForm(p, a.name.split('/').pop());
+  const { form } = deriveForm(p, a.name.split('/').pop());
   entries.push({
     // Keep the extension: clang.wasm and clang.js would otherwise both be
     // "llvm-wasm-clang", and a consumer looking an asset up by name would get
@@ -96,8 +116,12 @@ for (const a of man.assets) {
     sha256: a.sha256,
     size: a.bytes,
     form,
-    content,
-    license: a.license,       // extra field: see reply A3
+    content: [],              // capability layer: empty by the host's ruling
+    license: a.license,       // per-entry, because our assets carry three classes
+    // Where the bytes are TODAY: the bundle that contains them (same URL on
+    // every entry -- see UPSTREAM_BUNDLE above). Separate from `url` (the
+    // delivery path) so the record never claims the content host has them.
+    upstream_url: UPSTREAM_BUNDLE,
     deps: [],
   });
 }
@@ -106,7 +130,9 @@ for (const a of man.assets) {
 // rather than leaving every consumer to match on file names.
 const record = {
   schema: 2,
-  producer: { id: 'LLVM-wasm', pin: pin || man.toolchain.llvm_source_commit || 'unknown' },
+  // Lowercase: the validator matches producer ids against a lowercase table
+  // and reports "期望 'llvm-wasm'，表里是 'LLVM-wasm'" otherwise (measured).
+  producer: { id: 'llvm-wasm', pin: pin || man.toolchain.llvm_source_commit || 'unknown' },
   octave: '11.3.0',
   _why: 'Derived from release/out/manifest.json by release/make-content-list.mjs. '
       + 'Edit the manifest or the script, never this file.',

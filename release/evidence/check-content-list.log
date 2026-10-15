@@ -3,7 +3,7 @@ bundle: /mnt/hdd/zcode-projects/LLVM-wasm/release/out
 
 == schema 2 required fields ==
 PASS schema is 2: 2
-PASS producer has id and pin: LLVM-wasm @ v0.1.2
+PASS producer has id and pin: llvm-wasm @ v0.1.2
 PASS octave is present: 11.3.0
 PASS entries is a non-empty array: 13 entries
 PASS every entry has name/version/url/sha256/form: all present
@@ -38,8 +38,12 @@ PASS llvm-wasm-sysroot-headers.wasm64.tar: a real tar: form=tree
 == variants point at entries that exist ==
 PASS variant wasm32 -> llvm-wasm-sysroot-headers.tar
 PASS variant wasm64 -> llvm-wasm-sysroot-headers.wasm64.tar
+
+== the host validator (external contract) ==
+PASS host validator --producer llvm-wasm: ok
+PASS host validator --site: ok
 -- artifacts
-ARTIFACT content_list_check_pass 26
+ARTIFACT content_list_check_pass 28
 ARTIFACT content_list_entries_verified 13
 
 === ALL PASS ===
