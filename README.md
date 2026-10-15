@@ -149,7 +149,7 @@ python3 toolchain/emsdk/emsdk.py install <版本> && python3 toolchain/emsdk/ems
 |---|---|
 | `m0/` | M0 验证链：夹具、runner、证据日志、RESULTS.md |
 | `m1/` | M1 构建与验收：把 clang/lld 编成 wasm，wasm 内全链验收 |
-| `driver/` | M2 薄驱动：`compile()` 接口 + §5.4 缺口检查 + §9.10 fail-closed |
+| `driver/` | M2 薄驱动：`compile()` 接口 + §5.4 缺口检查 + §9.10 fail-closed；**流水线在 `compile-core.mjs`（两个 adapter 共用）** |
 | `browser/` | M2 浏览器验收：Worker 编译 + 闭环 dlopen（§7.3/§9.1–9.4/§9.8） |
 | `release/` | 交付包：manifest + 许可证分档 + 消费方验收（§2/§8/§9.10）；出包与 release notes 规范见 `release/README.md`（**发布说明用英文**） |
 | `package/` | M2 交付打包：sysroot tar + manifest |

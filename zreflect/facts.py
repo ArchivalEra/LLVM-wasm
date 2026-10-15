@@ -149,6 +149,7 @@ RELEASE_LOG = repo("release/evidence/check-release.log")
 W64_LOG = repo("release/evidence/wasm64-e2e.log")
 CL_LOG = repo("release/evidence/check-content-list.log")
 MAKE_LOG = repo("release/evidence/make-release.log")
+SEAM_LOG = repo("driver/evidence/check-compile-seam.log")
 
 BROWSER_INPUTS = ("browser/worker.mjs", "browser/index.html", "browser/check-browser.mjs")
 
@@ -444,6 +445,8 @@ def measure_facts():
              "同一产物在真 wasm64 宿主里的 dlopen 验收 PASS 数"),
             ("content_list_entries", MAKE_LOG,
              "content-list（接缝 schema 2）条目数 —— 给内容收口方的记录"),
+            ("compile_seam_check_pass", SEAM_LOG,
+             "编译流水线 seam 守卫 PASS 数（两个 adapter 必须走同一个 core）"),
             ("content_list_check_pass", CL_LOG,
              "记录验收 PASS 数（含宿主校验器两模式 —— 见 mail/004）"),
             ("browser_acceptance_pass", "../browser/evidence/browser.log",

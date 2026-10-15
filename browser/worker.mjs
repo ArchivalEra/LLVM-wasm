@@ -12,7 +12,7 @@
 //   out: { type: 'ready' }
 //   out: { type: 'result', ok, moduleBytes?, error?, gap? }
 //   out: { type: 'log', text }
-import { compileArgv, linkArgv, symbolGap } from '../driver/abi.mjs';
+import { compileWith } from '../driver/compile-core.mjs';
 import { readTar } from '../driver/tar-reader.mjs';
 
 let LLD_ARGS = null;   // remembered from init so compile() can respawn lld
@@ -119,52 +119,34 @@ async function init(msg) {
 
 // ------------------------------------------------------------------ compile
 async function compile(msg) {
-  const abi = { exceptions: 'wasm-legacy', pthread: true, ...(msg.abi || {}) };
-  const target = msg.target || 'wasm32';
-  const triple = `${target}-unknown-emscripten`;
-
-  clangMod.FS.mkdirTree('/src');
-  clangMod.FS.mkdirTree('/out');
-  clangMod.FS.writeFile('/src/input.cc', msg.source);
-
-  // §4.1 — from driver/abi.mjs (single source, same as the node driver)
-  const cc1 = compileArgv({
-    triple, files: 'input.cc', abi,
-    defines: msg.define || [], includes: msg.include || [], extra: msg.flags || [],
+  // The pipeline lives in driver/compile-core.mjs and is shared with the node
+  // driver. Before this, the worker re-implemented it and had already drifted:
+  // issue #1's precheck ("refuse when the sysroot cannot serve the target") was
+  // added to the node adapter and never reached here, so a browser build
+  // against a wasm32-only sysroot still produced a module without
+  // _emscripten_tls_init. Sharing the flag assembly was not enough; what drifted
+  // was the orchestration.
+  const r = await compileWith({
+    targetsAvailable: () => ['wasm32', 'wasm64'].filter((a) =>
+      sysrootFiles.has(`sysroot/lib/${a}-emscripten/pic/crtbegin-mt.o`)),
+    clang: async () => { clangMod.collected = lastErr = []; return clangMod; },
+    // A FRESH lld per compile, with this target's sysroot staged: emscripten's
+    // lld latches its feature set on first -mllvm parse, so a second callMain on
+    // one instance rejects an identical argv (measured here first).
+    lld: async (arch) => {
+      const mod = await instantiate(LLD_ARGS.glue, LLD_ARGS.wasm, { thisProgram: 'wasm-ld' });
+      installFiles(mod.FS, sysrootFiles);
+      mod.collected = lastErr = [];
+      return mod;
+    },
+    log,
+  }, {
+    source: msg.source, target: msg.target, abi: msg.abi,
+    define: msg.define, include: msg.include, flags: msg.flags,
+    hostBytes: msg.hostWasmBytes,
   });
-  log(`clang ${cc1.join(' ')}`);
-  lastErr = [];
-  const rcC = clangMod.callMain(cc1);
-  if (rcC !== 0) return { ok: false, error: `clang exited ${rcC}`, detail: lastErr.slice(-8) };
-  let obj;
-  try { obj = clangMod.FS.readFile('/out/tu.o'); } catch { obj = null; }
-  if (!obj || obj.length === 0) return { ok: false, error: 'no object produced' };
-
-  // §4.2
-  // A FRESH lld instance per compile. Reusing one is what produced
-  // "Unknown command line argument '-exception-model=wasm'" on the second
-  // compile: emscripten's lld latches its feature set when it first parses
-  // -mllvm, so the same argv is accepted once and rejected afterwards.
-  lldMod = await instantiate(LLD_ARGS.glue, LLD_ARGS.wasm, { thisProgram: 'wasm-ld' });
-  installFiles(lldMod.FS, sysrootFiles);       // a fresh instance starts empty
-  lldMod.FS.mkdirTree('/out');
-  lldMod.FS.writeFile('/out/tu.o', obj);
-  const cmd = linkArgv({
-    target, abi,
-    hasCrt: sysrootFiles.has(`sysroot/lib/${target}-emscripten/pic/crtbegin-mt.o`),
-    objPath: '/out/tu.o',
-  });
-  log(`wasm-ld ${cmd.join(' ')}`);
-  lastErr = [];
-  const rcL = lldMod.callMain(cmd);
-  if (rcL !== 0) return { ok: false, error: `wasm-ld exited ${rcL}`, detail: lastErr.slice(-8) };
-  let so;
-  try { so = lldMod.FS.readFile('/out/module.so'); } catch { so = null; }
-  if (!so || so.length === 0) return { ok: false, error: 'no module produced' };
-
-  // §5.4 — same function the node driver uses
-  const gap = msg.hostWasmBytes ? symbolGap(so, msg.hostWasmBytes) : symbolGap(so, null);
-  return { ok: true, moduleBytes: so, gap };
+  // The worker's protocol names the gap field `gap`; the core calls it symbolGap.
+  return { ok: r.ok, error: r.error, detail: r.detail, moduleBytes: r.moduleBytes, gap: r.symbolGap };
 }
 
 // ----------------------------------------------------------------- dispatch

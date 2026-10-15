@@ -1,0 +1,30 @@
+PASS the core exists
+PASS both adapters exist
+
+== the pipeline has one home ==
+PASS the core assembles argv
+PASS the core owns the precheck: the refusal message lives here, so both adapters inherit it
+PASS the core exports compileWith
+
+== adapters delegate ==
+PASS driver/toolchain.mjs calls compileWith
+PASS driver/toolchain.mjs does not assemble argv itself
+PASS driver/toolchain.mjs does not re-implement the precheck
+PASS browser/worker.mjs calls compileWith
+PASS browser/worker.mjs does not assemble argv itself
+PASS browser/worker.mjs does not re-implement the precheck
+
+== the runtime contract the core depends on ==
+PASS the core asks the runtime which targets exist
+PASS the core asks for a fresh lld per compile
+PASS the node adapter stages the sysroot in lld() (fresh instance starts empty)
+PASS the browser adapter stages the sysroot in lld()
+
+== the precheck actually refuses (not just present as text) ==
+PASS wasm64 against a wasm32-only runtime is refused
+PASS the refusal names the missing sysroot: sysroot for wasm64 is missing in this toolchain's sysroot source (avai
+PASS it refuses before touching clang or lld (no work done): stage=precheck
+-- artifacts
+ARTIFACT compile_seam_check_pass 18
+
+=== ALL PASS ===
