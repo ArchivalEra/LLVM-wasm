@@ -445,7 +445,7 @@ def measure_facts():
             ("content_list_entries", MAKE_LOG,
              "content-list（接缝 schema 2）条目数 —— 给内容收口方的记录"),
             ("content_list_check_pass", CL_LOG,
-             "记录自洽性检查 PASS 数（**不是**宿主校验器；见 mail/002 A2）"),
+             "记录验收 PASS 数（含宿主校验器两模式 —— 见 mail/004）"),
             ("browser_acceptance_pass", "../browser/evidence/browser.log",
              "真实浏览器（Chromium）验收 PASS 数：Worker 编译 + §9.8 纯客户端"),
             ("browser_module_basic_bytes", "../browser/evidence/browser.log",
