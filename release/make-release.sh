@@ -58,13 +58,21 @@ cp "$SYSROOT64"                 "$OUT/sysroot-headers.wasm64.tar"
 # ERR_MODULE_NOT_FOUND sysroot-bundle.mjs). A "driver-*" prefix reads nicer in a
 # listing and costs a broken deliverable.
 mkdir -p "$OUT/driver"
-for m in toolchain abi tar-reader sysroot-bundle; do cp "$ROOT/driver/$m.mjs" "$OUT/driver/"; done
+# Copy the driver by GLOB, not a hand-written list: the seam refactor added
+# compile-core.mjs and this line's list did not know about it, so the bundle
+# shipped a toolchain.mjs importing a file that was not there
+# (ERR_MODULE_NOT_FOUND compile-core.mjs). A hand-maintained list of "files that
+# must travel together" is the shape that drifts -- same lesson as release/.
+cp "$ROOT/driver/"*.mjs "$OUT/driver/"
+# The acceptance scripts are not needed at runtime; drop them so the bundle
+# carries only what a consumer imports.
+rm -f "$OUT/driver/acceptance-"*.mjs "$OUT/driver/check-"*.mjs
 cp "$ROOT/LICENSE"              "$OUT/LICENSE"
 cp "$ROOT/LICENSE-LLVM.txt"     "$OUT/LICENSE-LLVM.txt"
 cp "$ROOT/LICENSE-EMSCRIPTEN.txt" "$OUT/LICENSE-EMSCRIPTEN.txt"
 
 LLD_JS="$LLD_JS" LLD_WASM="$LLD_WASM" python3 - "$OUT" "$EMSDK" "$ROOT" <<'PY'
-import hashlib, json, os, subprocess, sys, time
+import glob, hashlib, json, os, subprocess, sys, time
 
 out, emsdk, root = sys.argv[1:4]
 lld_js = os.environ['LLD_JS']
@@ -108,10 +116,13 @@ ASSETS = [
      True),
     ('clang.js', EMCC, 'emscripten glue for clang.wasm', False),
     (lld_js, EMCC, 'emscripten glue for the lld wasm above', False),
-    ('driver/toolchain.mjs', OURS, 'thin driver: compile() per SPEC §7.4/§7.5', False),
-    ('driver/abi.mjs', OURS, 'ABI flag assembly + §5.4 gap check (shared with the browser worker)', False),
-    ('driver/tar-reader.mjs', OURS, 'tar reader (shared with the browser worker)', False),
-    ('driver/sysroot-bundle.mjs', OURS, 'bundle loading + sha256 fail-closed (SPEC §9.10)', False),
+    # Enumerated by globbing the copied directory, not by a second hand-written
+    # list. A list here would be the same drift shape as the copy line: it missed
+    # compile-core.mjs the moment the seam refactor added it, and the bundle went
+    # out describing four driver files while shipping five.
+    *[(f'driver/{os.path.basename(f)}', OURS,
+       'thin driver runtime (see driver/README.md)', False)
+      for f in sorted(glob.glob(os.path.join(out, 'driver', '*.mjs')))],
     ('LICENSE', OURS, 'this repo license', False),
     ('LICENSE-LLVM.txt', LLVM, 'LLVM upstream license text (verbatim)', False),
     ('LICENSE-EMSCRIPTEN.txt', EMCC, 'emscripten upstream license text (verbatim)', False),

@@ -120,9 +120,19 @@ def m1_opt_inputs_fingerprint():
     return h.hexdigest()[:16]
 
 
-DRIVER_INPUTS = ("driver/toolchain.mjs", "driver/acceptance-driver.mjs",
-                 "driver/check-gap-reverse.mjs", "driver/sysroot-bundle.mjs",
-                 "driver/check-fail-closed.mjs")
+# Discovered, not listed. A hand-written tuple here is the drift shape this repo
+# keeps hitting: the seam refactor added compile-core.mjs and this witness kept
+# hashing the old set, so a change to the new module was invisible to it. The
+# same mistake, one layer over, is what made the release bundle ship a
+# toolchain.mjs importing a file it did not contain.
+def _driver_inputs():
+    d = repo("driver")
+    if not os.path.isdir(d):
+        return ()
+    return tuple(sorted("driver/" + f for f in os.listdir(d) if f.endswith(".mjs")))
+
+
+DRIVER_INPUTS = _driver_inputs()
 
 
 def package_inputs_cmd():

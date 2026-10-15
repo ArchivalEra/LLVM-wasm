@@ -132,7 +132,14 @@ const record = {
   schema: 2,
   // Lowercase: the validator matches producer ids against a lowercase table
   // and reports "期望 'llvm-wasm'，表里是 'LLVM-wasm'" otherwise (measured).
-  producer: { id: 'llvm-wasm', pin: pin || man.toolchain.llvm_source_commit || 'unknown' },
+  //
+  // `release:` prefix per the schema's suggested form (release:<tag> /
+  // commit:<sha> / submodule:<sha>): the prefix states what kind of thing the
+  // pin names, which matters because an unprefixed string cannot be told from
+  // an intention. This repo already got that wrong once -- pin "v0.1.2" named a
+  // release that did not exist yet, and the schema now records it as the
+  // measured lesson behind the prefix.
+  producer: { id: 'llvm-wasm', pin: `release:${pin || 'unknown'}` },
   octave: '11.3.0',
   _why: 'Derived from release/out/manifest.json by release/make-content-list.mjs. '
       + 'Edit the manifest or the script, never this file.',

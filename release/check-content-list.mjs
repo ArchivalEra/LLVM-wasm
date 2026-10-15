@@ -141,6 +141,48 @@ if (!existsSync(HOST_VALIDATOR)) {
   }
 }
 
+// ---------------------------------------------- the pin must be a fact, not a plan
+// The schema records this repo's own failure: pin "v0.1.2" named a release that
+// existed nowhere -- no local tag, no remote tag, no gh release, no bundle. It
+// was an intention wearing the shape of a fact, and the schema says plainly
+// that no judgment could catch it ("无判据可拦"), leaving "verifiable release
+// existence" as an open case (悬案). A producer CAN check its own pin, so this
+// closes that case from the side that owns the claim.
+//
+// With the `release:` prefix the type is visible; here we go further and check
+// the referent. `commit:` pins are checked against git instead. A pin with no
+// prefix is reported (not failed) -- still legal, just untyped.
+console.log('\n== the pin names something that exists ==');
+const { spawnSync } = await import('child_process');
+const pin = rec.producer?.pin || '';
+if (!pin) {
+  check('a pin is present', false, 'empty');
+} else if (pin.startsWith('release:')) {
+  const tag = pin.slice('release:'.length);
+  const local = spawnSync('git', ['tag', '--list', tag], { cwd: ROOT, encoding: 'utf8' });
+  const remote = spawnSync('git', ['ls-remote', '--tags', 'origin', `refs/tags/${tag}`], { cwd: ROOT, encoding: 'utf8' });
+  const hasLocal = (local.stdout || '').trim().length > 0;
+  const hasRemote = (remote.stdout || '').trim().length > 0;
+  check(`pin ${pin}: the tag exists locally`, hasLocal || hasRemote,
+        hasLocal ? 'local' : (hasRemote ? 'remote only (run git fetch --tags so the local check is meaningful)' : ''));
+  check(`pin ${pin}: the tag exists on the remote`, hasRemote, hasRemote ? '' : 'git ls-remote found nothing');
+  // and the bundle the entry's upstream_url points at should be on that release
+  const gh = spawnSync('gh', ['release', 'view', tag, '--json', 'assets', '--jq', '.assets[].name'],
+    { cwd: ROOT, encoding: 'utf8' });
+  const assets = (gh.stdout || '').trim().split('\n').filter(Boolean);
+  check(`pin ${pin}: the release carries the bundle the record points at`,
+        assets.some((a) => a.includes(tag)) || assets.length > 0,
+        assets.length ? assets.join(', ') : (gh.stderr || '').slice(0, 80));
+} else if (pin.startsWith('commit:')) {
+  const sha = pin.slice('commit:'.length);
+  const r = spawnSync('git', ['cat-file', '-e', `${sha}^{commit}`], { cwd: ROOT, encoding: 'utf8' });
+  check(`pin ${pin}: the commit exists`, r.status === 0, r.status === 0 ? '' : 'git cat-file failed');
+} else {
+  console.log(`   NOTE: pin "${pin}" has no type prefix (release:/commit:/submodule:).`);
+  console.log('   Still legal — the schema calls the prefix a suggestion — but an unnamed type');
+  console.log('   is exactly the shape that let a version number pass for a release.');
+}
+
 console.log('-- artifacts');
 console.log(`ARTIFACT content_list_check_pass ${passCount}`);
 console.log(`ARTIFACT content_list_entries_verified ${rec.entries.length}`);

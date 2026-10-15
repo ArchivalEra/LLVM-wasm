@@ -1,8 +1,8 @@
 bundle: /mnt/hdd/zcode-projects/LLVM-wasm/release/out
-manifest: 13 assets, generated 2026-10-14T19:26:51+0800
+manifest: 14 assets, generated 2026-10-15T22:05:53+0800
 
 == SPEC §2: every asset carries name + bytes + sha256 + license ==
-PASS all assets have the four required fields: 13 assets
+PASS all assets have the four required fields: 14 assets
 PASS manifest declares a sysroot per built target: {"wasm32":"sysroot-headers.tar","wasm64":"sysroot-headers.wasm64.tar"}
 PASS sysroot for wasm32 is present in the bundle (sysroot-headers.tar)
 PASS sysroot for wasm64 is present in the bundle (sysroot-headers.wasm64.tar)
@@ -44,7 +44,7 @@ PASS first pull <= 15 MB (brotli): 14,371,044 bytes (14.37 MB)
    total incl. lazy lld: 22.87 MB
 -- artifacts
 ARTIFACT release_acceptance_pass 27
-ARTIFACT release_assets 13
+ARTIFACT release_assets 14
 ARTIFACT release_first_load_brotli 14371044
 ARTIFACT release_total_brotli 22866347
 ARTIFACT release_targets 2

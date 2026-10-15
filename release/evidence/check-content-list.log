@@ -3,7 +3,7 @@ bundle: /mnt/hdd/zcode-projects/LLVM-wasm/release/out
 
 == schema 2 required fields ==
 PASS schema is 2: 2
-PASS producer has id and pin: llvm-wasm @ v0.1.2
+PASS producer has id and pin: llvm-wasm @ release:v0.1.2
 PASS octave is present: 11.3.0
 PASS entries is a non-empty array: 13 entries
 PASS every entry has name/version/url/sha256/form: all present
@@ -18,7 +18,7 @@ PASS llvm-wasm-sysroot-headers.tar: 20654080 B
 PASS llvm-wasm-sysroot-headers.wasm64.tar: 20654080 B
 PASS llvm-wasm-clang.js: 76240 B
 PASS llvm-wasm-lld-wasm-only.js: 72686 B
-PASS llvm-wasm-driver-toolchain.mjs: 13092 B
+PASS llvm-wasm-driver-toolchain.mjs: 9501 B
 PASS llvm-wasm-driver-abi.mjs: 7209 B
 PASS llvm-wasm-driver-tar-reader.mjs: 1782 B
 PASS llvm-wasm-driver-sysroot-bundle.mjs: 2621 B
@@ -42,8 +42,13 @@ PASS variant wasm64 -> llvm-wasm-sysroot-headers.wasm64.tar
 == the host validator (external contract) ==
 PASS host validator --producer llvm-wasm: ok
 PASS host validator --site: ok
+
+== the pin names something that exists ==
+PASS pin release:v0.1.2: the tag exists locally: local
+PASS pin release:v0.1.2: the tag exists on the remote
+PASS pin release:v0.1.2: the release carries the bundle the record points at: content-list.json, llvm-wasm-bundle-v0.1.2.tar.gz, manifest.json
 -- artifacts
-ARTIFACT content_list_check_pass 28
+ARTIFACT content_list_check_pass 31
 ARTIFACT content_list_entries_verified 13
 
 === ALL PASS ===
