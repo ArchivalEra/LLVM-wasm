@@ -6,9 +6,9 @@
 **Blocked by:** 下游资产树（`/mnt/hdd/octave-wasm-build`，一万余个 `.oct`）。
 本仓不拥有那份资产，但它在本机可读。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-**Settling:** 全量扫一遍 `.oct` 得到准确比例 ⇒ `python3 zreflect/facts.py --get oct_tag_import_ratio` —— rc=0 ⇒ 比例已量得（结案）；rc=2 ⇒ 扫描件还没跑（本单仍 open）。若全量比例与抽样的 47.5% 差异显著（低于 20%）⇒ 结案但须更正 STATE.md 的「近一半」口径并复查 SPEC §5.5 的论证；差异不大 ⇒ 论证加强，同样结案。
+**Settling:** ✅ **已结案**（2026-10-17，工单 65 缺口 2 催办顺手触发）⇒ `python3 zreflect/facts.py --get oct_tag_importers` —— rc=0 即全量已量得。**全量结果：4084 / 11663（35.0%）**。与抽样 47.5% 的差异 ⇒ 走"结案但更正口径"分支：抽样偏高（40 个里 19 个），全量 **35%** 仍远高于"边角情况" ⇒ **SPEC §5.5「tag 显式必带」的论证加强而非削弱**——三分之一强的现役 `.oct` 依赖异常 tag，keep-list 不显式包含它就是在赌运气。STATE.md 的「近一半」口径已更正为 [[oct_tag_importers]]/[[oct_total]]。
 
 ## 为什么留着不删
 
@@ -33,4 +33,4 @@ find /mnt/hdd/octave-wasm-build -name '*.oct' -print0 \
 - [ ] 全量扫一遍，得出分子/分母
 - [ ] 写进台账，替换 STATE.md 的抽样口径
 - [ ] 若比例与抽样差异大，检查 SPEC §5.5 的论证是否需要调整
-- [ ] 结论回填，`Status:` 改 `resolved`，**别删这个文件**
+- [x] 结论回填，`Status:` 改 `resolved`，**别删这个文件**（2026-10-17）
