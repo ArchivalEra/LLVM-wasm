@@ -161,5 +161,5 @@ python3 toolchain/emsdk/emsdk.py install <版本> && python3 toolchain/emsdk/ems
 | `FACTS.json` | 事实台账：数字的唯一产地 |
 | `retractions.json` | 翻案台账 |
 | `DELIVERY.md` | 交付说明：下游怎么 pin、怎么接、宿主须承诺什么 |
-| `mail/` | 跨 agent 通信收件箱（只追加）：其他仓（额外内容仓 / 宿主）的问与答，规矩见 `mail/README.md`；接缝记录：必修见 `mail/003`，复核见 `mail/005`，收线见 `mail/007`（**已收**）；工单 65 缺口 2（`_ZTIi` 归属）的答复见 `mail/009`（抄送件，正本在宿主仓 mail/026）；跨仓催办（宿主工单 65 缺口 2 归属）见 `mail/008` |
+| `mail/` | 跨 agent 通信收件箱（只追加）：其他仓（额外内容仓 / 宿主）的问与答，规矩见 `mail/README.md`；接缝记录：必修见 `mail/003`，复核见 `mail/005`，收线见 `mail/007`（**已收**）；工单 65 缺口 2（`_ZTIi` 归属）的答复见 `mail/009`（抄送件，正本在宿主仓 mail/026）；跨仓催办（宿主工单 65 缺口 2 归属）见 `mail/008`，归属已确认（宿主 ABI 决策）见 `mail/009`/`010` |
 | `release/content-list.json` | 接缝记录（schema 2）：给内容收口方的资产清单 |
