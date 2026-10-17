@@ -1,0 +1,11 @@
+== compile: a throw-int module must import _ZTIi ==
+PASS throw-int fixture compiles
+PASS the product imports _ZTIi (any correct compiler does; emcc identical)
+
+== gap against the real host (ruling A, before its relink) ==
+PASS host was checked
+PASS the gap check NAMES _ZTIi against the current host (compile-time warning until the relink): the relink will flip this half — see the note below
+-- artifacts
+ARTIFACT ztii_regression_pass 4
+
+=== ALL PASS ===

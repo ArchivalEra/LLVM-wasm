@@ -160,6 +160,7 @@ W64_LOG = repo("release/evidence/wasm64-e2e.log")
 CL_LOG = repo("release/evidence/check-content-list.log")
 MAKE_LOG = repo("release/evidence/make-release.log")
 SEAM_LOG = repo("driver/evidence/check-compile-seam.log")
+ZTII_LOG = repo("driver/evidence/check-ztii-regression.log")
 
 BROWSER_INPUTS = ("browser/worker.mjs", "browser/index.html", "browser/check-browser.mjs")
 
@@ -455,6 +456,8 @@ def measure_facts():
              "同一产物在真 wasm64 宿主里的 dlopen 验收 PASS 数"),
             ("content_list_entries", MAKE_LOG,
              "content-list（接缝 schema 2）条目数 —— 给内容收口方的记录"),
+            ("ztii_regression_pass", ZTII_LOG,
+             "_ZTIi 回归 PASS 数（裁决 A 时间表：重链前点名 / 重链后翻绿）"),
             ("compile_seam_check_pass", SEAM_LOG,
              "编译流水线 seam 守卫 PASS 数（两个 adapter 必须走同一个 core）"),
             ("content_list_check_pass", CL_LOG,
