@@ -2,7 +2,7 @@
  "schema": 2,
  "producer": {
   "id": "llvm-wasm",
-  "pin": "release:v0.1.2"
+  "pin": "release:v0.1.3"
  },
  "octave": "11.3.0",
  "_why": "Derived from release/out/manifest.json by release/make-content-list.mjs. Edit the manifest or the script, never this file.",
