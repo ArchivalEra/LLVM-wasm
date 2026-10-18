@@ -45,12 +45,11 @@ PASS host validator --producer llvm-wasm: ok
 PASS host validator --site: ok
 
 == the pin names something that exists ==
-FAIL pin release:v0.1.3: the tag exists locally
-FAIL pin release:v0.1.3: the tag exists on the remote: git ls-remote found nothing
-FAIL pin release:v0.1.3: the release carries the bundle the record points at: release not found
-
+PASS pin release:v0.1.3: the tag exists locally: local
+PASS pin release:v0.1.3: the tag exists on the remote
+FAIL pin release:v0.1.3: the release carries the bundle the record points at: Get "https://api.github.com/repos/ArchivalEra/LLVM-wasm/releases/tags/v0.1.3": d
 -- artifacts
-ARTIFACT content_list_check_pass 29
+ARTIFACT content_list_check_pass 31
 ARTIFACT content_list_entries_verified 14
 
-=== 3 FAILED ===
+=== 1 FAILED ===

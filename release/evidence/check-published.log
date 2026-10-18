@@ -1,0 +1,39 @@
+downloaded: llvm-wasm-bundle-v0.1.3.tar.gz
+bundle: /tmp/pubcheck-nxfFbH/llvm-wasm-bundle-v0.1.3.tar.gz
+manifest: 14 assets, generated 2026-10-18T23:17:33+0800
+tar contains 17 entries
+
+== every manifest asset is present in the tar ==
+PASS asset clang.wasm
+PASS asset lld-wasm-only.wasm
+PASS asset sysroot-headers.tar
+PASS asset sysroot-headers.wasm64.tar
+PASS asset clang.js
+PASS asset lld-wasm-only.js
+PASS asset driver/abi.mjs
+PASS asset driver/compile-core.mjs
+PASS asset driver/sysroot-bundle.mjs
+PASS asset driver/tar-reader.mjs
+PASS asset driver/toolchain.mjs
+PASS asset LICENSE
+PASS asset LICENSE-LLVM.txt
+PASS asset LICENSE-EMSCRIPTEN.txt
+PASS no manifest asset is missing from the tar: 0 missing
+
+== relative imports inside driver/ resolve within the bundle ==
+PASS no broken relative imports inside the bundle: the v0.1.2 failure shape, checked on the published bytes
+
+== the content-list inside the bundle agrees ==
+PASS content-list entries == manifest assets (same set): 14 each
+
+== the bundle driver/ matches the repo driver/ (not just itself) ==
+PASS every repo driver .mjs is in the bundle: 5 files
+PASS no extra driver files beyond the repo
+PASS driver files are byte-identical to the repo: all match
+
+== the record pins the tag being served ==
+PASS pin "release:v0.1.3" names this tag
+-- artifacts
+ARTIFACT published_check_pass 21
+
+=== ALL PASS ===

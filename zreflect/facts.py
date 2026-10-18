@@ -161,6 +161,7 @@ CL_LOG = repo("release/evidence/check-content-list.log")
 MAKE_LOG = repo("release/evidence/make-release.log")
 SEAM_LOG = repo("driver/evidence/check-compile-seam.log")
 ZTII_LOG = repo("driver/evidence/check-ztii-regression.log")
+PUB_LOG = repo("release/evidence/check-published.log")
 
 BROWSER_INPUTS = ("browser/worker.mjs", "browser/index.html", "browser/check-browser.mjs")
 
@@ -456,6 +457,8 @@ def measure_facts():
              "同一产物在真 wasm64 宿主里的 dlopen 验收 PASS 数"),
             ("content_list_entries", MAKE_LOG,
              "content-list（接缝 schema 2）条目数 —— 给内容收口方的记录"),
+            ("published_check_pass", PUB_LOG,
+             "发布件反读对账 PASS 数（--tag：从 GitHub 下载的已发布字节）"),
             ("ztii_regression_pass", ZTII_LOG,
              "_ZTIi 回归 PASS 数（裁决 A 时间表：重链前点名 / 重链后翻绿）"),
             ("compile_seam_check_pass", SEAM_LOG,

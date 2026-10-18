@@ -2,7 +2,9 @@
 
 浏览器内的 C/C++ → Emscripten side module 编译工具链。
 
-> **v0.1.2 已发布**：[releases/tag/v0.1.2](https://github.com/ArchivalEra/LLVM-wasm/releases/tag/v0.1.2)
+> **v0.1.3 已发布**：[releases/tag/v0.1.3](https://github.com/ArchivalEra/LLVM-wasm/releases/tag/v0.1.3)
+> —— v0.1.2 曾缺 `compile-core.mjs`（宿主抓出，R-012）；v0.1.3 修复并带反读对账器
+> `release/check-published.mjs`（`--tag` 从已发布字节核对）。历史：v0.1.2 / v0.1.1 / v0.1.0
 > —— 交付包 + `manifest.json` + `content-list.json`（接缝记录）都在附件里；
 > 下游接法见 [`DELIVERY.md`](DELIVERY.md)。
 > v0.1.2：记录**通过宿主的内容校验器**（`--producer` / `--site` 两模式），
