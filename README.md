@@ -7,7 +7,8 @@
 > 下游接法见 [`DELIVERY.md`](DELIVERY.md)。
 > v0.1.2：记录**通过宿主的内容校验器**（`--producer` / `--site` 两模式），
 > 且 sysroot tar 内补了三份许可（442/1578 个文件原本不带声明）。
-> v0.1.1 修 issue #1：发布包只装 wasm32 档 sysroot 却声称支持两档 ⇒ wasm64 产物缺 TLS 入口。独立仓库，被下游以
+> v0.1.1 修 issue #1：发布包只装 wasm32 档 sysroot 却声称支持两档 ⇒ wasm64 产物缺 TLS 入口。
+> 版本：工具链与下游宿主同为 emsdk 6.0.12（下游 2026-10-11 三线发运；5.0.7 轴已退役，悬案 02 wontfix）。独立仓库，被下游以
 submodule 钉住（pin = commit，字节 = sha256）。需求书是**唯一一份**，在
 下游仓：`Octave-Full-Wasm/build/113/SPEC-clang-wasm.md`（本仓不另存副本）。
 
