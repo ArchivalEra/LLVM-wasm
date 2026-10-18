@@ -85,8 +85,10 @@ memory64:   bool
 { "exceptions": "wasm-legacy", "pthread": true, "memory64": false, "main_module": 2 }
 ```
 
-⚠️ 判据是**契约相等**，不是版本号相等（SPEC §8）：
-工具链跑在 emsdk **[[emcc_version]]**，产物已经在 5.0.7 与 6.0.12 两代宿主上验证过。
+⚠️ 判据是**契约相等**，不是版本号相等（SPEC §8）。
+工具链跑在 emsdk **[[emcc_version]]**；下游宿主自 2026-10-11 起同为 6.0.12（同版本，
+端到端见 `release/check-wasm64-e2e.sh`）。历史注：6.0.12 产物曾在 5.0.7 宿主上验证通过
+（M0/M1 期），该轴已随下游全面切 6.0.12 退役。
 
 **两档 sysroot 都在包里，按 `target` 自动选**（issue #1）：
 `manifest.toolchain.sysroots` 给出 `{wasm32: …, wasm64: …}` 映射；把两档一起交给驱动即可：

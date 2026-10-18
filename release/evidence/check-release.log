@@ -1,5 +1,5 @@
 bundle: /mnt/hdd/zcode-projects/LLVM-wasm/release/out
-manifest: 14 assets, generated 2026-10-15T22:05:53+0800
+manifest: 14 assets, generated 2026-10-18T15:24:38+0800
 
 == SPEC §2: every asset carries name + bytes + sha256 + license ==
 PASS all assets have the four required fields: 14 assets

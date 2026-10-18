@@ -5,11 +5,11 @@ bundle: /mnt/hdd/zcode-projects/LLVM-wasm/release/out
 PASS schema is 2: 2
 PASS producer has id and pin: llvm-wasm @ release:v0.1.2
 PASS octave is present: 11.3.0
-PASS entries is a non-empty array: 13 entries
+PASS entries is a non-empty array: 14 entries
 PASS every entry has name/version/url/sha256/form: all present
 
 == names identify one thing each ==
-PASS entry names are unique: 13 unique
+PASS entry names are unique: 14 unique
 
 == every entry matches the bytes ==
 PASS llvm-wasm-clang.wasm: 48069274 B
@@ -18,16 +18,17 @@ PASS llvm-wasm-sysroot-headers.tar: 20654080 B
 PASS llvm-wasm-sysroot-headers.wasm64.tar: 20654080 B
 PASS llvm-wasm-clang.js: 76240 B
 PASS llvm-wasm-lld-wasm-only.js: 72686 B
-PASS llvm-wasm-driver-toolchain.mjs: 9501 B
 PASS llvm-wasm-driver-abi.mjs: 7209 B
-PASS llvm-wasm-driver-tar-reader.mjs: 1782 B
+PASS llvm-wasm-driver-compile-core.mjs: 5798 B
 PASS llvm-wasm-driver-sysroot-bundle.mjs: 2621 B
+PASS llvm-wasm-driver-tar-reader.mjs: 1782 B
+PASS llvm-wasm-driver-toolchain.mjs: 9501 B
 PASS llvm-wasm-LICENSE: 34523 B
 PASS llvm-wasm-LICENSE-LLVM.txt: 15141 B
 PASS llvm-wasm-LICENSE-EMSCRIPTEN.txt: 5093 B
 
 == record and manifest agree (one producer) ==
-PASS no entry contradicts the manifest: 13 checked
+PASS no entry contradicts the manifest: 14 checked
 
 == form is derived from the bytes, not the name ==
 PASS llvm-wasm-clang.wasm: a real wasm module: form=file
@@ -48,7 +49,7 @@ PASS pin release:v0.1.2: the tag exists locally: local
 PASS pin release:v0.1.2: the tag exists on the remote
 PASS pin release:v0.1.2: the release carries the bundle the record points at: content-list.json, llvm-wasm-bundle-v0.1.2.tar.gz, manifest.json
 -- artifacts
-ARTIFACT content_list_check_pass 31
-ARTIFACT content_list_entries_verified 13
+ARTIFACT content_list_check_pass 32
+ARTIFACT content_list_entries_verified 14
 
 === ALL PASS ===

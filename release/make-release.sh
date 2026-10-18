@@ -161,9 +161,10 @@ man = {
         'memory64': False,
         'main_module': 2,
         'recorded_at_packaging': {
-            'emscripten': '6.0.12 (per the migration in flight downstream)',
-            'note': 'downstream was migrating 5.0.7 -> 6.0.12; the toolchain was built '
-                    'on 6.0.12 and its products dlopen in both (measured M0/M1).',
+            'emscripten': '6.0.12',
+            'note': 'downstream shipped 6.0.12 on all lines as of 2026-10-11; the '
+                    'toolchain is the same version (same-version end to end via '
+                    'release/check-wasm64-e2e.sh). The 5.0.7 axis is retired.',
         },
     },
     'assets': [],
