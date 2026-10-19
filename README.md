@@ -131,6 +131,12 @@ python3 toolchain/emsdk/emsdk.py install <版本> && python3 toolchain/emsdk/ems
 同一条教训的另一半：`hasCrt=false` 曾经静默（`compile()` 仍返回 `ok:true`），
 现在**先拒绝**再说。声称支持 + 静默降级 + 自检全绿，是本仓立身要消灭的形状。
 
+## 一条已机制化的纪律
+
+**集合的产地只有一个：盘。** 全部见证 cmd 与指纹函数走同一组 glob（`_hash_globs`），
+不手写文件清单——手写元组与 glob 共存即双产地（实测对不上过）。判据双证：
+往 `driver/` 丢新文件 ⇒ 24 条见证红。见 `zreflect/facts.py` 的 `_hash_globs`。
+
 ## 纪律
 
 本仓用 [Einfacht](https://github.com/ArchivalEra/Einfacht)（vendored 在 `zreflect/`）：
