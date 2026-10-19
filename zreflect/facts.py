@@ -62,7 +62,7 @@ def _run(cmd, cwd=None):
 
 BUILD_INPUTS = ("m0/side.cc", "m0/host.cc", "m0/run-m0.sh",
                 "m0/run-mm2-keeplist.sh", "m0/check-symbol-gap.mjs")
-BUILD_INPUTS_CMD = "cat %s | sha256sum | cut -c1-16" % " ".join(BUILD_INPUTS)
+BUILD_INPUTS_CMD = "cat m0/side.cc m0/host.cc m0/run-*.sh m0/check-symbol-gap.mjs | sha256sum | cut -c1-16"
 
 
 def build_inputs_fingerprint():
@@ -71,53 +71,34 @@ def build_inputs_fingerprint():
     值（产物字节数）不重跑；但「产出它的输入还是我以为的那个」每次提交真跑。
     输入一动，指纹就变，见证立刻红 —— 而那时产物数字也确实该重测了。
     """
-    import hashlib                                          # noqa: PLC0415
-    h = hashlib.sha256()
-    for rel in BUILD_INPUTS:
-        p = os.path.join(GATE_REPO, rel)
-        if os.path.exists(p):
-            with open(p, "rb") as fh:
-                h.update(fh.read())
-    return h.hexdigest()[:16]
+    return _hash_globs(["m0/side.cc", "m0/host.cc", "m0/run-*.sh", "m0/check-symbol-gap.mjs"])
 
 
 M1_INPUTS = ("m1/build-clang-wasm.sh", "m1/acceptance.mjs")
 
 
 def m1_inputs_cmd():
-    return "cat %s | sha256sum | cut -c1-16" % " ".join(M1_INPUTS)
+    return "cat m1/build-clang-wasm.sh m1/acceptance*.mjs | sha256sum | cut -c1-16"
 
 
 def m1_inputs_fingerprint():
     """产出 m1 产物/结论的那套输入的指纹 —— 贵事实的便宜见证。"""
-    import hashlib                                          # noqa: PLC0415
-    h = hashlib.sha256()
-    for rel in M1_INPUTS:
-        p = os.path.join(GATE_REPO, rel)
-        if os.path.exists(p):
-            with open(p, "rb") as fh:
-                h.update(fh.read())
-    return h.hexdigest()[:16]
+    return _hash_globs(["m1/build-clang-wasm.sh", "m1/acceptance*.mjs"])
 
 
-M1_OPT_INPUTS = ("m1/exp-build.sh", "m1/exp-run.sh", "m1/patch-lld-wasm-only.sh",
-                 "m1/exp-firstload.sh")
+# No hand-written tuple: the witness cmd globs (cat m1/exp-*.sh m1/patch-*.sh)
+# and the fingerprint must hash THE SAME SET. Hashing a different list than the
+# cmd expands is two producers of one set -- the exact drift this repo's issue
+# to Einfacht (#18) is about. Derive both from disk.
 
 
 def m1_opt_inputs_cmd():
-    return "cat %s | sha256sum | cut -c1-16" % " ".join(M1_OPT_INPUTS)
+    return "cat m1/exp-*.sh m1/patch-lld-wasm-only.sh | sha256sum | cut -c1-16"
 
 
 def m1_opt_inputs_fingerprint():
-    """产出优化实验数字的那套脚本的指纹 —— 贵事实的便宜见证。"""
-    import hashlib                                          # noqa: PLC0415
-    h = hashlib.sha256()
-    for rel in M1_OPT_INPUTS:
-        p = os.path.join(GATE_REPO, rel)
-        if os.path.exists(p):
-            with open(p, "rb") as fh:
-                h.update(fh.read())
-    return h.hexdigest()[:16]
+    """产出优化实验数字的那套脚本的指纹 —— 与 witness cmd 同一组 glob。"""
+    return _hash_globs(["m1/exp-*.sh", "m1/patch-lld-wasm-only.sh"])
 
 
 # Discovered, not listed. A hand-written tuple here is the drift shape this repo
@@ -125,12 +106,44 @@ def m1_opt_inputs_fingerprint():
 # hashing the old set, so a change to the new module was invisible to it. The
 # same mistake, one layer over, is what made the release bundle ship a
 # toolchain.mjs importing a file it did not contain.
+
+def _hash_globs(patterns):
+    """Hash exactly what `cat <globs>` would concatenate (sorted per pattern).
+
+    The single-source rule for every "files that must travel together" set in
+    this repo (issue to Einfacht #18): the witness cmd globs, so the fingerprint
+    must hash the same expansion -- never a hand-written list of names, which is
+    a second producer and drifts (measured: the m1 tuple lacked exp-firstload.sh
+    while the cmd's glob included it).
+    """
+    import glob as _g                                       # noqa: PLC0415
+    import hashlib                                          # noqa: PLC0415
+    h = hashlib.sha256()
+    for pat in patterns:
+        for rel in sorted(os.path.relpath(p, GATE_REPO)
+                          for p in _g.glob(os.path.join(GATE_REPO, pat))):
+            with open(os.path.join(GATE_REPO, rel), "rb") as fh:
+                h.update(fh.read())
+    return h.hexdigest()[:16]
+
 def _driver_inputs():
     d = repo("driver")
     if not os.path.isdir(d):
         return ()
     return tuple(sorted("driver/" + f for f in os.listdir(d) if f.endswith(".mjs")))
 
+
+# Witness commands use GLOB, not enumeration (Einfacht issue #18, adopted half):
+# a hand-listed set of "files that must travel together" is a second producer and
+# drifts -- measured three times in one day on this repo. A glob in the witness
+# cmd re-expands at every run, so adding/removing a file changes the fingerprint
+# and the gate goes red. The tuples below stay only for _fingerprint() hashing,
+# which derives from disk (same principle, Python side).
+def _glob(pattern):
+    d = repo(".")
+    import glob as _g                                              # noqa: PLC0415
+    hits = sorted(os.path.relpath(p, d) for p in _g.glob(os.path.join(d, pattern)))
+    return tuple(hits)
 
 DRIVER_INPUTS = _driver_inputs()
 
@@ -150,7 +163,7 @@ def package_inputs_fingerprint():
 
 
 def driver_inputs_cmd():
-    return "cat %s | sha256sum | cut -c1-16" % " ".join(DRIVER_INPUTS)
+    return "cat driver/*.mjs | sha256sum | cut -c1-16"
 
 
 BROWSER_LOG = repo("browser/evidence/browser.log")
@@ -167,31 +180,19 @@ BROWSER_INPUTS = ("browser/worker.mjs", "browser/index.html", "browser/check-bro
 
 
 def browser_inputs_cmd():
-    return "cat %s | sha256sum | cut -c1-16" % " ".join(BROWSER_INPUTS)
+    return "cat browser/*.mjs browser/*.html | sha256sum | cut -c1-16"
 
 
 def browser_inputs_fingerprint():
     """浏览器 harness 的指纹 —— 浏览器验收数字的便宜见证。"""
-    import hashlib                                          # noqa: PLC0415
-    h = hashlib.sha256()
-    for rel in BROWSER_INPUTS:
-        p = os.path.join(GATE_REPO, rel)
-        if os.path.exists(p):
-            with open(p, "rb") as fh:
-                h.update(fh.read())
-    return h.hexdigest()[:16]
+    return _hash_globs(["browser/worker.mjs", "browser/index.html", "browser/check-*.mjs"])
 
 
 def driver_inputs_fingerprint():
     """薄驱动源码的指纹 —— 驱动验收数字的便宜见证。"""
     import hashlib                                          # noqa: PLC0415
     h = hashlib.sha256()
-    for rel in DRIVER_INPUTS:
-        p = os.path.join(GATE_REPO, rel)
-        if os.path.exists(p):
-            with open(p, "rb") as fh:
-                h.update(fh.read())
-    return h.hexdigest()[:16]
+    return _hash_globs(["driver/*.mjs"])
 
 
 def oct_census_fingerprint():
