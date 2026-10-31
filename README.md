@@ -135,7 +135,23 @@ python3 toolchain/emsdk/emsdk.py install <版本> && python3 toolchain/emsdk/ems
 
 **集合的产地只有一个：盘。** 全部见证 cmd 与指纹函数走同一组 glob（`_hash_globs`），
 不手写文件清单——手写元组与 glob 共存即双产地（实测对不上过）。判据双证：
-往 `driver/` 丢新文件 ⇒ 24 条见证红。见 `zreflect/facts.py` 的 `_hash_globs`。
+往 `driver/` 丢新文件 ⇒ 24 条见证红。见 `zreflect/measure_llvm_wasm.py` 的 `_hash_globs`。
+
+## 事实系统的分层（同步上游时唯一要懂的一件事）
+
+机制层是上游的，数据层是本仓的，两者在**不同的文件**里：
+
+| 层 | 在哪 | 归属 | 同步上游时 |
+|---|---|---|---|
+| 机制层 | `zreflect/*.py`、`reflect-hooks/*`（除 `Einfacht.env`） | [Einfacht](https://github.com/ArchivalEra/Einfacht) | **整体覆盖**（逐字节等于 `zreflect/VENDORED.json` 的 pin） |
+| 数据层 | `zreflect/measure_llvm_wasm.py` | 本仓 | **不动**（`REFLECT_MEASURE_MODULE` 指名它） |
+| 本仓配置 | `reflect-hooks/Einfacht.env`、`FACTS.json`、`STATE.md`、`retractions.json`、`questions/` | 本仓 | 不动 |
+
+这一分层是上游 `REFLECT_MEASURE_MODULE`（其 issue #15 A1/C3）带来的：`facts.py` 不再
+被 fork，「本仓量什么」只是一个独立模块。于是同步上游 = 拷文件 + 改一行 pin，不需要
+merge。**判据**：`node release/check-vendored-sync.mjs`（闸门 `check_vendored_sync.py`
+每次提交自动跑）——从远端重拉 pin 那个 commit，逐字节比；本仓自有文件在
+`VENDORED.json` 的 `local` 里显式列出，它们不同**不是**漂移。
 
 ## 纪律
 
@@ -162,8 +178,8 @@ python3 toolchain/emsdk/emsdk.py install <版本> && python3 toolchain/emsdk/ems
 | `browser/` | M2 浏览器验收：Worker 编译 + 闭环 dlopen（§7.3/§9.1–9.4/§9.8） |
 | `release/` | 交付包：manifest + 许可证分档 + 消费方验收（§2/§8/§9.10）；出包与 release notes 规范见 `release/README.md`（**发布说明用英文**） |
 | `package/` | M2 交付打包：sysroot tar + manifest |
-| `zreflect/` | Einfacht 机制层（vendored）：闸门 / 台账 / 渲染 |
-| `reflect-hooks/` | git 钩子与旋钮载体 `Einfacht.env` |
+| `zreflect/` | Einfacht 机制层（vendored）：闸门 / 台账 / 渲染；**本仓数据层 `measure_llvm_wasm.py` 也在这**（见「事实系统的分层」） |
+| `reflect-hooks/` | git 钩子与旋钮载体 `Einfacht.env`（含 `REFLECT_MEASURE_MODULE`） |
 | `toolchain/` | emsdk（**不入库**） |
 | `questions/` | 悬案：每条挂一个能结案的实验 |
 | `STATE.md` | 活状态（正文 + 文末机器块） |
