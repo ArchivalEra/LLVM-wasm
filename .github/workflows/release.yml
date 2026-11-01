@@ -183,6 +183,45 @@ jobs:
       - name: Contract checker
         run: python3 /tmp/ec/tools/check-release-v4.py release/split/manifest.json --base release/split | tail -2
 
+      # ── 3b) 契约 v1.1（schema 3）：加许可声明 ────────────────────────────
+      # 生成器仍只产 schema 2（extra-content 的 make-manifest-v4.py 未改），
+      # 所以生成后加一步升级。顺序由 Static-Contract mail/021 §1 指定：
+      # **在「release 内容 == manifest 内容」之后、`gh release create` 之前**。
+      # 许可不新增 asset，所以内容判据不受影响；但校验必须用新 schema 跑。
+      #
+      # ★ 许可**逐条不同**（这个 release 里三种并存），所以映射是数据文件
+      #   `release/licenses.json`，不是在这里内联一段 heredoc：
+      #     · clang.wasm / lld.wasm / LICENSE-LLVM.txt → Apache-2.0 WITH LLVM-exception
+      #     · clang.js / lld.js / LICENSE-EMSCRIPTEN.txt / sysroot tar → MIT OR NCSA（＋AND）
+      #     · driver/* / LICENSE → AGPL-3.0-or-later
+      #   extra-content 建议过单一表达式 `Apache-2.0 WITH LLVM-exception AND
+      #   BSD-3-Clause`：那份**漏了 AGPL 部分**，且 emscripten 是 MIT/NCSA 不是
+      #   BSD-3-Clause（见 LICENSE-EMSCRIPTEN.txt 首段）。逐条核过才写的这张表。
+      - name: Upgrade manifest to schema 3 (per-entry licenses)
+        run: python3 release/make-license.py release/split/manifest.json
+
+      # 升级后必须重跑校验器（它会验 V11）。这一步是**新 schema 下**的判据，
+      # 上一条 3) 的 Contract checker 跑的是 schema 2 —— 两步都要，不能省一个。
+      - name: Contract checker (schema 3, after licence upgrade)
+        run: |
+          python3 /tmp/ec/tools/check-release-v4.py release/split/manifest.json --base release/split | tail -2
+          # 断言 schema 真的是 3，且许可真的是逐条写的
+          python3 - <<'PY'
+          import json, sys
+          m = json.load(open('release/split/manifest.json'))
+          if m.get('schema') != 3:
+              sys.exit('FATAL: schema 不是 3（%r）' % m.get('schema'))
+          if not m.get('license', {}).get('id'):
+              sys.exit('FATAL: 顶层没有 license.id')
+          missing = [e['name'] for e in m['entries'] if not e.get('license', {}).get('id')]
+          if missing:
+              sys.exit('FATAL: 这些 entry 没有 entry 级 license：%s' % ', '.join(missing))
+          lic = {e['name'].split('/')[-1]: e['license']['id'] for e in m['entries']}
+          print('schema 3, %d entries, %d distinct licences' % (len(m['entries']), len(set(lic.values()))))
+          for k, v in sorted(lic.items()):
+              print('  %-28s %s' % (k, v))
+          PY
+
       # ── 4) 从分片拼回整包，证明 identity 路径完整（不上传，只验）────────
       - name: The whole bundle is reconstructible from identity chunks
         run: |
@@ -269,6 +308,13 @@ jobs:
           if missing:
               sys.exit('FATAL: 已发布 release 缺 manifest 声明的资产：%s' % ', '.join(sorted(missing)[:5]))
           print('PASS release contents == manifest contents (%d assets)' % len(got))
+          # 契约 v1.1：从**已发布**的 manifest 上确认许可真的在（不是只在构建产物里）
+          if man.get('schema') != 3:
+              sys.exit('FATAL: 已发布 manifest 的 schema 是 %r，不是 3' % man.get('schema'))
+          nolic = [e['name'] for e in man['entries'] if not e.get('license', {}).get('id')]
+          if nolic:
+              sys.exit('FATAL: 已发布 manifest 里这些 entry 没有许可：%s' % ', '.join(nolic))
+          print('PASS schema 3 + per-entry licences present in the published manifest')
           PY
 
           python3 /tmp/ec/tools/check-release-v4.py /tmp/vfy/manifest.json --base /tmp/vfy | tail -2

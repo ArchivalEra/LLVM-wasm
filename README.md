@@ -215,6 +215,21 @@ tag/pin。**载荷真变了**（重编 clang、换 sysroot）必须在有工具�
 5. **workflow 里每个调 `gh` 的步骤都要自己的 `GH_TOKEN`** —— 漏一个，那步退出 4，
    job 红而发布其实是好的：**反读没跑成 ≠ 反读通过**（v0.1.5 首跑实测）。
 
+## 每个载荷有自己的许可
+
+路由契约 v1.1（schema 3）：release 声明许可，**逐条可覆盖**。本仓的产物不是一种许可：
+
+| 载荷 | 许可 | 为什么 |
+|---|---|---|
+| `clang.wasm` / `lld-wasm-only.wasm` / `LICENSE-LLVM.txt` | `Apache-2.0 WITH LLVM-exception` | 实测 `LICENSE-LLVM.txt` = Apache 正文 **+** LLVM Exceptions 段；只写 `Apache-2.0` 会丢掉例外条款 |
+| `clang.js` / `lld-wasm-only.js` / `LICENSE-EMSCRIPTEN.txt` | `MIT OR NCSA` | 实测其首段写明是 MIT 与 NCSA 双许可，**不是** BSD-3-Clause |
+| `sysroot-headers*.tar` | `(Apache-2.0 WITH LLVM-exception) AND (MIT OR NCSA)` | 一个 tar 里两种：libc++ 头是 LLVM 派生，emscripten 的 compat 头是 MIT/NCSA |
+| `driver/*.mjs` / `LICENSE` | `AGPL-3.0-or-later` | 本仓自己的代码 |
+
+映射在 `release/licenses.json`（数据），`release/make-license.py` 施加，并**断言字节身份未变**
+——只许改 `schema`/`license`/`role`；分片名、字节数、sha256 必须逐字相同，否则拒绝写盘。
+那是「换 manifest 不用重传 asset」这句话的机器判据。
+
 ## 事实系统的分层（同步上游时唯一要懂的一件事）
 
 机制层是上游的，数据层是本仓的，两者在**不同的文件**里：
