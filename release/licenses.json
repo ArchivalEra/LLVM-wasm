@@ -3,7 +3,9 @@
  "_how": "被 release/make-license.py 读；它也负责把这份映射施加到 manifest 上，并把 entry 标 role。改许可改这里，不要改 CI 里的内联脚本。",
  "release": {
   "expr": "(Apache-2.0 WITH LLVM-exception) AND (MIT OR NCSA) AND AGPL-3.0-or-later",
-  "why": "三种许可并存且互不替代（LLVM 派生的 wasm、emscripten 的胶水、本仓的驱动）。顶层写 AND 表示「三份义务都要满足」；具体哪条适用哪个载荷看 entry 级。"
+  "why": "三种许可并存且互不替代（LLVM 派生的 wasm、emscripten 的胶水、本仓的驱动）。顶层写 AND 表示「三份义务都要满足」；具体哪条适用哪个载荷看 entry 级。",
+  "url": "https://github.com/ArchivalEra/LLVM-wasm/blob/main/LICENSE",
+  "url_why": "顶层指向本仓 LICENSE（三种许可的汇总说明在 release notes 与 entry 级）；契约 v1.1 要求 url 必填且 https。"
  },
  "by_name": {
   "clang.wasm": {
@@ -50,27 +52,27 @@
    "role": "payload",
    "note": "与 wasm32 那份同构（include/ 是架构共享的）。"
   },
-  "driver/abi.mjs": {
+  "driver__abi.mjs": {
    "id": "AGPL-3.0-or-later",
    "url": "https://github.com/ArchivalEra/LLVM-wasm/blob/main/LICENSE",
    "role": "payload"
   },
-  "driver/compile-core.mjs": {
+  "driver__compile-core.mjs": {
    "id": "AGPL-3.0-or-later",
    "url": "https://github.com/ArchivalEra/LLVM-wasm/blob/main/LICENSE",
    "role": "payload"
   },
-  "driver/sysroot-bundle.mjs": {
+  "driver__sysroot-bundle.mjs": {
    "id": "AGPL-3.0-or-later",
    "url": "https://github.com/ArchivalEra/LLVM-wasm/blob/main/LICENSE",
    "role": "payload"
   },
-  "driver/tar-reader.mjs": {
+  "driver__tar-reader.mjs": {
    "id": "AGPL-3.0-or-later",
    "url": "https://github.com/ArchivalEra/LLVM-wasm/blob/main/LICENSE",
    "role": "payload"
   },
-  "driver/toolchain.mjs": {
+  "driver__toolchain.mjs": {
    "id": "AGPL-3.0-or-later",
    "url": "https://github.com/ArchivalEra/LLVM-wasm/blob/main/LICENSE",
    "role": "payload"
@@ -92,5 +94,6 @@
    "LLVM-exception": "licenses.md 第 772 行（例外，用于 WITH）"
   },
   "why": "Static-Contract mail/023 §2 指出「NCSA 是否真实 SPDX ID 我无法验证，协议也不验」。这条是可核的，已核：四个 id 加一个例外全部在官方列表里，且 text/NCSA.txt 与 LICENSE-EMSCRIPTEN.txt 内的 NCSA 正文同源。⇒ 我校验器抓不到的拼写错误，这里用外部权威补上了依据。"
- }
+ },
+ "_key_form": "键是 manifest 里 entry.name 的**原样字面串**（契约仓 mail/027 纠正：无 toolchain/ 前缀；driver/ 已扁平为 driver__）。不许归一 —— 归一规则进工具就得当契约维护。"
 }
