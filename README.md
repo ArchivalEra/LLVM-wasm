@@ -188,6 +188,9 @@ tag/pin。**载荷真变了**（重编 clang、换 sysroot）必须在有工具�
 **为什么两份都叫 `manifest.json` 却不冲突**：层级不同。我那份在 tar **里面**，
 契约那份在 release **顶层**；没有任何客户端会在同一层看到两个。
 
+⚠️ 发的时候别传反了：v0.1.5 第一次就把构建清单传到了顶层，靠对比文件大小才发现
+（构建清单几 KB，契约那份二十多 KB）。名字一样，唯一能分辨的是内容。
+
 ```sh
 sh release/make-split-release.sh v0.1.5     # ⇒ release/split/
 ```
