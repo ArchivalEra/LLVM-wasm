@@ -197,8 +197,18 @@ jobs:
       #   extra-content 建议过单一表达式 `Apache-2.0 WITH LLVM-exception AND
       #   BSD-3-Clause`：那份**漏了 AGPL 部分**，且 emscripten 是 MIT/NCSA 不是
       #   BSD-3-Clause（见 LICENSE-EMSCRIPTEN.txt 首段）。逐条核过才写的这张表。
-      - name: Upgrade manifest to schema 3 (per-entry licenses)
-        run: python3 release/make-license.py release/split/manifest.json
+      #
+      # ⛔ **阻塞中**：契约仓的 `tools/upgrade-manifest-license.py` 目前只支持
+      #   **顶层** license（`upgrade(man, lic)` 只写 `man["license"]`），没有
+      #   entry 级能力。本仓 14 个载荷分属三种许可（4 / 5 / 5），顶层一条盖不住。
+      #   **已发信请求他们加 entry 支持**（mail/023）。在他们加之前，这一步用
+      #   `exit 1` 明说阻塞 —— 不自己写一份"补丁式升级器"：
+      #   一个契约各家各写检查器是极难维护的形状，两份实现必然漂。
+      - name: Upgrade manifest to schema 3 (per-entry licences)
+        run: |
+          echo "BLOCKED: 等契约仓 tools/upgrade-manifest-license.py 支持 entry 级 license"
+          echo "         本仓 mail/023 已请求；在此之前不自己实现（避免第二份检查器）"
+          exit 1
 
       # 升级后必须重跑校验器（它会验 V11）。这一步是**新 schema 下**的判据，
       # 上一条 3) 的 Contract checker 跑的是 schema 2 —— 两步都要，不能省一个。

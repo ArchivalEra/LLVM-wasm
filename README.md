@@ -240,6 +240,10 @@ tag/pin。**载荷真变了**（重编 clang、换 sysroot）必须在有工具�
 
 契约 v1.1 当前**只查形状不查语义**（合法 SPDX + https url），所以上面这张表的值是我逐条核产物、而不是抄建议得来的。
 
+**工具只在契约仓**：升级与校验都用 `Octave-Extra-Content/tools/`，本仓不留第二份实现。
+契约的 `upgrade-manifest-license.py` 目前只支持顶层 license，entry 级已发信请求；
+在此之前 CI 的升级步骤**明确失败**（不是跳过、不是用本地副本凑合）。
+
 映射在 `release/licenses.json`（数据），`release/make-license.py` 施加，并**断言字节身份未变**
 ——只许改 `schema`/`license`/`role`；分片名、字节数、sha256 必须逐字相同，否则拒绝写盘。
 那是「换 manifest 不用重传 asset」这句话的机器判据。
