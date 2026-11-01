@@ -1,114 +1,121 @@
 {
-  "_why": [
-    "翻案台账：每条 = 一条**已被推翻**的断言。`text` 是它的特征片段（会被当搜索串在活状态文档里找）。",
-    "`why` 说它为什么错，`evidence` 给复跑方式或出处，`fixed_in` 说现在哪里说对了。",
-    "`check_retractions.py` 的判据：活状态文档里只要出现 `text`，**该行必须带更正标记**。"
-  ],
-  "retractions": [
-    {
-      "id": "R-001",
-      "text": "keep-list 从 IMPORT 段生成，也收不到 tag 这类非函数项",
-      "why": "初判错误。实测 `wasm-dis` 把 tag 导入打成 `(import \"env\" \"__cpp_exception\" (tag ...))`，`gen-keep-list.sh` 的正则 `^ \\(import \"(env|GOT\\..*)\" \"…\"` 能匹配到它。同一批初判还说「下游今天没做」—— 也错：下游 `octave.build.json` 记着 `main_module: 2`、`measured.exported_functions: 752`，那 752 个导出里含 `__cpp_exception`。",
-      "evidence": "sh m0/run-mm2-keeplist.sh（第 3 步：keep-list 50 个符号含 tag ⇒ 宿主导出 76 个含 tag ⇒ dlopen 全绿）",
-      "fixed_in": "m0/RESULTS.md 的 F-3 节（含更正表）；STATE.md 的「宿主符号契约」节"
-    },
-    {
-      "id": "R-002",
-      "text": "MAIN_MODULE=2 下异常 tag 不导出，side module 装不上",
-      "why": "结论方向对但**过强**：它成立只在「纯 MM=2、无 keep-list」这一种配置。加上从 side 导入生成的 keep-list（含 tag）后完全可用。说成「MM=2 路线不行」会把人误导去用体积大 8.7 倍的 MM=1。",
-      "evidence": "sh m0/run-mm2-keeplist.sh（三步对照：bare 30 导出/0 tag 失败 → 只补 tag 32 导出仍失败 → +keep-list 76 导出全绿）",
-      "fixed_in": "m0/RESULTS.md §9「宿主配置的实测代价」表"
-    },
-    {
-      "id": "R-003",
-      "text": "符号缺口检查器直接比 env 导入与宿主导出",
-      "why": "该口径会**报假缺口**。`--export-dynamic` 让 side 既导入又导出同一符号（GOT 自引用），而 emscripten 的 `resolveSymbol` 查 `wasmImports → localScope → moduleExports` —— side 自己的导出是合法解析源。实测同一条夹具：不扣自导出报 2 个缺口，扣掉后只有 1 个真缺口（`_ZNSt3__213basic_ostreamIcNS_11char_traitsIcEEElsEm`，它在宿主里既无定义也不在导出表）。",
-      "evidence": "node m0/check-symbol-gap.mjs（已实现修正口径）；对照：原口径见 SPEC v2 §5.2",
-      "fixed_in": "m0/check-symbol-gap.mjs（扣 sideExports + tag 单列）；SPEC v3 §5.4 已采纳"
-    },
-    {
-      "id": "R-004",
-      "text": "去掉了 -fwasm-exceptions 就必须装不上",
-      "why": "SPEC §9.5 与 §4.4 的 v2 原文预期「`LinkError: Incompatible version`」。实测（6.0.12 + LLVM 24）**装得上**：`PASS dlopen`、通过 9 项检查，直到第一次 C++ throw 才抛未捕获 `WebAssembly.Exception`。失效在**运行期首次 throw**，不在加载期。",
-      "evidence": "sh m0/run-counterexamples.sh（§9.5 节：no-EH side `PASS dlopen` 通过 9 项后才炸）",
-      "fixed_in": "m0/RESULTS.md 的 F-5；SPEC v3 §9.5 已按此更正措辞"
-    },
-    {
-      "id": "R-005",
-      "text": "本仓以 submodule 钉住 Einfacht",
-      "why": "submodule 的 gitlink **属于被追踪内容**，与「Einfacht 一切不进 git」冲突；且 `Einfacht/` 放在仓库根下会让 `GATE_REPO` 解析成 `Einfacht/` 而不是本仓，闸门会查错对象（`zreflect/gate.py` 的 `GATE_REPO` 默认取包目录上一级）。",
-      "evidence": "python3 -c \"import sys;sys.path.insert(0,'zreflect');from gate import GATE_REPO;print(GATE_REPO)\" ⇒ 打印本仓根",
-      "fixed_in": "机制层 vendored 到仓库根（zreflect/ + reflect-hooks/ + gates-selftest.sh），当普通文件追踪"
-    },
-    {
-      "id": "R-006",
-      "text": "裸数字判据会拦住手抄的测量值",
-      "why": "在**本仓的采集器实现**上不成立过一段时间：`_artifact()` 与 `_run()` 取回的值是**字符串**，而 `check_facts.problems()` 的裸数字判据只查 `isinstance(v, int)` ⇒ 字符串值的键**根本不进扫描**，手抄同样的数字全绿。实测复现：把「19653 字节」写进 STATE.md 正文，闸门报 OK。值型别错 = 判据静默失效（这正是本系统最恨的「命令成功、值稳定、复跑永远通过，而它量的不是想量的」仪器失真家族）。",
-      "evidence": "python3 zreflect/check_facts.py（在 STATE.md 正文插入「19653 字节」后应报裸数字；修前 rc=0、修后 rc=1）",
-      "fixed_in": "zreflect/facts.py 的 `_artifact_int()`（ARTIFACT 值转 int）+ `gates_total` / `m0_runner_scripts` / `clang_major` / `lld_major` 同样转 int"
-    },
-    {
-      "id": "R-007",
-      "text": "基线配置是 -O1（所以 wasm-opt 还有后处理空间）",
-      "why": "写 handoff 时我把 `m1/build-clang-wasm.sh` 里的 `-DCMAKE_C_FLAGS=\"-O1\"` 当成了实际优化档，并据此论证「体积不在可被 Binaryen 消掉的冗余里」。**两处都错**：(1) 基线实际是 `-O3` —— `CMAKE_BUILD_TYPE=Release` 会在 `-O1` 之后追加 `-O3 -DNDEBUG`，而 emcc 认**最后一个** `-O`（实测 `ninja -t commands` 里两个旗标同时在）；(2) 因此那条论证的依据（「wasm-opt 只省 36 KB」）的真实原因是**链接期 binaryen 已经按 -O3 跑过一遍**，不是在它输出上再跑一遍的结果。结论碰巧对、理由是错的 —— 这类必须记，否则下一个 agent 会拿错误理由去推别的结论。由隔壁在 OPT-RESULTS.md §0 抓出。",
-      "evidence": "ninja -C m1/build-clang -t commands tools/clang/lib/Basic/CMakeFiles/obj.clangBasic.dir/Version.cpp.o | grep -oE '\\-O[0-9s]+'",
-      "fixed_in": "m1/OPT-REVIEW.md §2；m1/OPT-RESULTS.md §0（隔壁的原始发现）"
-    },
-    {
-      "id": "R-008",
-      "text": "「brotli ≤ 15 MB」大概不成立",
-      "why": "同一个坑上**两轮 agent 各错一次、方向相反**，所以记一条：(1) 第一轮说「卡在 LLVM 自己的 CrashRecoveryContext，需要改源码」—— 错，那是纯旗标问题；(2) 第二轮复核把根因修正为「旗标冲突 + builtins 变体选错」（**对**），但给出的修法是加 `-sSUPPORT_LONGJMP=wasm` —— **这一条恰是制造故障的开关**。实测：带它 ⇒ emcc 落到 `Exceptions.WASM_LEGACY`（`settings.WASM_LEGACY_EXCEPTIONS` 默认 true）⇒ 链 `libclang_rt.builtins-legacysjlj`（无 `emscripten_longjmp`）⇒ 失败；**不设**它 ⇒ 落到 `Exceptions.EMSCRIPTEN` ⇒ 链 `libclang_rt.builtins.a`（有该符号）⇒ **成功**（48,069,274 B raw、brotli 12,614,129、验收 10 PASS）。机制在 `tools/system_libs.py:898` 的 `get_default_variation`。第二轮之所以错，是它的「独立验证」用了只声明 `emscripten_longjmp` 的最小夹具 —— 夹具里没有 `CrashRecoveryContext`，走的 builtins 选择路径与真目标不同 ⇒ **夹具过了不等于真目标过了**（本仓「仪器量的不是想量的」家族的又一例）。 （本条的 `text` 取自我实际写下的措辞——OPT-REVIEW 写的是「15 MB 这个目标…大概不成立」、问卷 C0 标题是「「brotli ≤ 15 MB」大概不成立」；取后者，因为它是两处的公共子串。）",
-      "evidence": "EXP_JOBS=22 bash m1/exp-run.sh lean_nosjlj（失败：wasm-ld: undefined symbol: emscripten_longjmp）；去掉 -sSUPPORT_LONGJMP=wasm 后重跑 m1/exp-run.sh lean_nosjlj，ninja 一把过（成功，48069274 B / brotli 12614129）。两趟记录都在 m1/evidence/opt-lean_nosjlj.log（失败那次的报错原文附在文件末尾）",
-      "fixed_in": "m1/OPT-RESULTS.md §5.2.2（含正确 flag 全文）；m1/OPT-REVIEW.md §5（对复核的再更正）；m1/exp-run.sh 的 lean_nosjlj 配置"
-    },
-    {
-      "id": "R-009",
-      "text": "gzip 体积是一个只取决于字节流的量（`gzip -9 -c` 就够）",
-      "why": "**不成立**：GNU `gzip -9 -c` 会把**输入文件名**写进 gzip 头，于是同一份字节流换个路径/文件名就量出不同的值（实测同一个 48,069,274 B 的 wasm：在 A 路径 17,317,088、换到 B 路径 17,317,077，差的就是名字长度）。这把「体积」这个本该是内容属性的量，变成了**量它的路径的函数** ⇒ 复跑必然对不上，且对不上时看不出是谁错。同一个量还有第三个值：Python 的 `gzip.compress(...,9)` 给 17,308,255 —— 与 GNU `-9 -n` 的 17,170,777 差 137 KB。两者都「对」，但**混用就是两个口径**（本仓台账里 `m1_clang_wasm_gzip` 出自 GNU `-9 -c`，而我补的 `lean_nosjlj_clang_wasm_gzip` 最初混进过 python 的值，是这次发现它的起因）。修法：一律 `gzip -9 -nc`（`--no-name`：去掉文件名与时间戳），并只用一种工具。",
-      "evidence": "gzip -9 -c <f> | wc -c  → 17317088；gzip -9 -nc <f> | wc -c → 17317077；python3 -c 'import gzip;print(len(gzip.compress(open(f,\"rb\").read(),9)))' → 17308255（三者同一份文件）",
-      "fixed_in": "m1/exp-build.sh 的 measure()（改用 -nc，并写明原因）；m1/OPT-RESULTS.md §5.2.2 的口径说明；m1/build-clang-wasm.sh 的基线行**故意未改**（交接单要求基线行为不动，且它量的是固定 basename ⇒ 复跑一致；差异已写在报告里）"
-    },
-    {
-      "id": "R-010",
-      "text": "SPEC §6 的 15 MB 预算「到不了」（超 41%）",
-      "why": "**比较口径错了，结论因此反了。** 我拿**三资产总量**（clang + lld + sysroot = 22.80 MB）去比 15 MB，得出「超 41%、到不了」，并把这条写进了 README、OPT-RESULTS §0、问卷 C0 与 §8 待办。但 SPEC §6 的原句是「brotli 后 **≤ 15 MB（首拉）**，支持**分片懒加载** + 浏览器缓存」——**限定词是「首拉」**。按首拉算：clang.wasm 12,614,129 + clang.js 18,682 + sysroot.tar 1,675,293 = **14,308,104 B（14.31 MB）⇒ 达标，余量 0.69 MB**。lld 不计入首拉有两处独立支撑：(1) 驱动里 lld 本来就是懒加载（`driver/toolchain.mjs` 的 `async lld()` 带 `if (this._lld) return this._lld`，只有链接时才 require）；(2) SPEC §6 自己点名支持分片懒加载。**但我也不宣称「达标」是定论**：SPEC 同一段的表格把三资产求和叫「合计 13.07 MB」（总量口径），与括号里的「首拉」**自相矛盾**，两个口径差 8.5 MB、结论相反 ⇒ 已升到问卷 C0 请委托人裁决。这条的教训是**比预算前先把预算的限定词读全**——我三轮实验都在优化总量，而预算从来没说它管总量。",
-      "evidence": "bash m1/exp-firstload.sh ⇒ ARTIFACT firstload_brotli 14308104 / firstload_plus_lld_brotli 22803407；产地 m1/evidence/opt-firstload.log",
-      "fixed_in": "m1/OPT-RESULTS.md §0.1（新增，含两个口径并列）；to-questionnaire-clang-wasm-m1.md C0（改成单一裁决问题）；README.md 的体积段；新增量测件 m1/exp-firstload.sh"
-    },
-    {
-      "id": "R-011",
-      "text": "要达标只剩「只支持 C」这条路（丢掉整个 C++ 前端）",
-      "why": "**拍脑袋写的，实测证伪。** 我在 OPT-RESULTS §8 与问卷 C0 写过「唯一可能达标的方向是只支持 C——丢掉整个 C++ 前端（libclangSema 27 MB + libclangAST 25 MB 是所有库里的前两名）」。两处都错：(1) 那两个库**不是「C++ 前端」**，是 C/C++ **共用**的词法/语法/语义/常量求值——按链接器 map 逐符号归因，`SemaDecl.cpp` 一个共用文件里就有 383 处 `CXX`；(2) 把所有「非 C 语言特性」按文件名全砍光的**乐观上限**（模板/概念/协程 5.31% + OpenMP 4.02% + ObjC 1.19% + HLSL 1.02% + CUDA/HIP/SYCL 0.51% = CODE 段 12.05%），外推 brotli 也只到约 11.09 MB，加 lld 8.50 MB = **19.59 MB，仍超 15 MB**；且上游**没有**「只编 C」的构建开关（grep CLANG_ENABLE_C_ONLY 为空），要做只能改源码。这条错的性质与 R-007 同类：**用「哪个库最大」代替「哪个库能砍」**——库大不等于可去，共用库尤其如此。",
-      "evidence": "python3 m1/exp-map-attrib.py --make-map /tmp/mapbuild/clang.map --build m1/build-exp-lean_nosjlj ⇒ CODE 段归因 + 非 C 特性 12.05% + 外推 19.59 MB",
-      "fixed_in": "m1/OPT-RESULTS.md §5.3（新增实测表，替换原拍脑袋判断）；to-questionnaire-clang-wasm-m1.md C0 末尾的更正段；新增分析件 m1/exp-map-attrib.py"
-    },
-    {
-      "id": "R-008",
-      "text": "「brotli ≤ 15 MB」大概不成立",
-      "why": "我用**三资产总量**（clang+lld+sysroot = 22.80 MB brotli）去比 15 MB。但 SPEC §6 原文是「brotli 后 ≤ 15 MB（**首拉**），支持分片懒加载 + 浏览器缓存」——口径是**首拉**（只编不链 = clang.wasm + 胶水 + sysroot），lld 是首次链接时才拉的懒加载分片。按首拉算：**14.31 MB，达标**（余量 0.69 MB）。这条错判写进了 OPT-REVIEW、问卷 C0 和 STATE.md，会误导委托人去改一个不用改的预算。 （本条的 `text` 取自我实际写下的措辞——OPT-REVIEW 写的是「15 MB 这个目标…大概不成立」、问卷 C0 标题是「「brotli ≤ 15 MB」大概不成立」；取后者，因为它是两处的公共子串。）",
-      "evidence": "bash m1/exp-firstload.log（ARTIFACT firstload_brotli = 14308104）；SPEC §6 原文「（首拉），支持分片懒加载」",
-      "fixed_in": "m1/OPT-RESULTS.md（隔壁的口径更正）；STATE.md；to-questionnaire-clang-wasm-m1.md 的 C0 已撤"
-    },
-    {
-      "id": "R-009",
-      "text": "wasm64 需要第二套 clang/lld 构建产物",
-      "why": "我以为两档要像 sysroot 那样各建一套。实测：**编译器是多目标的** —— 同一个 clang.wasm 加 `--target=wasm64-unknown-emscripten` 就产出真 64 位对象（memory limits flags 带 0x04 位），同一个 lld.wasm 加 `-mwasm64` 就能链。两档只差 sysroot 的 `pic/` 子树（`crtbegin-mt.o` md5 各异），`include/` 共享。",
-      "evidence": "node driver/acceptance-wasm64.mjs（wasm32 976 B memory64=false / wasm64 994 B memory64=true，10 PASS）",
-      "fixed_in": "driver/RESULTS.md §4b；driver/acceptance-wasm64.mjs"
-    },
-    {
-      "id": "R-010",
-      "text": "targets_built: ['wasm32'] —— wasm64 tar not shipped because its crtbegin is generated on demand",
-      "why": "发布包只装 wasm32 档 sysroot，理由是「wasm64 的 crtbegin 按需生成」。**那个生成路径在代码里不存在** —— driver 只有 `_hasCrt()` 做存在性检查，没有任何生成逻辑。实际行为：`_hasCrt('wasm64')=false` ⇒ 链接行静默丢掉 crt ⇒ `compile({target:'wasm64'})` **仍返回 ok:true**，产物缺 `_emscripten_tls_init` ⇒ 下游宿主 dlopen 时报 `TypeError: tlsInitFunc is not a function`，症状完全不指向「包内少一个 crt 文件」。三个信号互相矛盾：`DELIVERY.md` 写「wasm64 也支持」、manifest 写 `['wasm32']`、`compile()` 返回 ok。由下游以 issue #1 报出（附最小复现）。",
-      "evidence": "node release/check-release.mjs（修复后 27 PASS；修复前 wasm64 那条编译返回 ok:true 但导出无 _emscripten_tls_init）",
-      "fixed_in": "driver/toolchain.mjs 的 precheck 硬失败 + 按 target 选 tar（bundle.tars）；release/make-release.sh 同时发布两档 sysroot；manifest.targets_built 改 ['wasm32','wasm64'] 并加 sysroots 映射"
-    },
-    {
-      "id": "R-012",
-      "text": "v0.1.2 已发布、13→14 条（多了 compile-core.mjs，因为它现在真的在包里）",
-      "why": "**与发布资产不符**（宿主 mail/044/本仓 013 逐件核字节抓出）。14 条只存在于工作树 `release/out/`——修复提交 `149e72b`（14:47:23）晚于 GitHub release 发布（14:39:02）**8 分钟**，v0.1.2 已按 13 条打包发出。我在 `mail/007` 里写那句时，把「工作树重生成」当成了「已发布」。根因形状与 R-010 同族但更细：**不是「清单没跟上」，是「声明发布状态时没有对账已发布资产**」——检查器读的是 `release/out/`（工作树），没有一步从已发布 tar 反读。",
-      "evidence": "tar tzf release/llvm-wasm-bundle-v0.1.2.tar.gz | grep compile-core ⇒ 空；gh release view v0.1.2 --json publishedAt ⇒ 2026-10-15T06:39:02Z；git show -s 149e72b ⇒ 14:47:23 +0800",
-      "fixed_in": "v0.1.3 重发（修复已在 make-release.sh 的 glob 里）；release/check-published.mjs 反读对账器（发布后判据）"
-    }
-  ]
+ "_why": [
+  "翻案台账：每条 = 一条**已被推翻**的断言。`text` 是它的特征片段（会被当搜索串在活状态文档里找）。",
+  "`why` 说它为什么错，`evidence` 给复跑方式或出处，`fixed_in` 说现在哪里说对了。",
+  "`check_retractions.py` 的判据：活状态文档里只要出现 `text`，**该行必须带更正标记**。"
+ ],
+ "retractions": [
+  {
+   "id": "R-001",
+   "text": "keep-list 从 IMPORT 段生成，也收不到 tag 这类非函数项",
+   "why": "初判错误。实测 `wasm-dis` 把 tag 导入打成 `(import \"env\" \"__cpp_exception\" (tag ...))`，`gen-keep-list.sh` 的正则 `^ \\(import \"(env|GOT\\..*)\" \"…\"` 能匹配到它。同一批初判还说「下游今天没做」—— 也错：下游 `octave.build.json` 记着 `main_module: 2`、`measured.exported_functions: 752`，那 752 个导出里含 `__cpp_exception`。",
+   "evidence": "sh m0/run-mm2-keeplist.sh（第 3 步：keep-list 50 个符号含 tag ⇒ 宿主导出 76 个含 tag ⇒ dlopen 全绿）",
+   "fixed_in": "m0/RESULTS.md 的 F-3 节（含更正表）；STATE.md 的「宿主符号契约」节"
+  },
+  {
+   "id": "R-002",
+   "text": "MAIN_MODULE=2 下异常 tag 不导出，side module 装不上",
+   "why": "结论方向对但**过强**：它成立只在「纯 MM=2、无 keep-list」这一种配置。加上从 side 导入生成的 keep-list（含 tag）后完全可用。说成「MM=2 路线不行」会把人误导去用体积大 8.7 倍的 MM=1。",
+   "evidence": "sh m0/run-mm2-keeplist.sh（三步对照：bare 30 导出/0 tag 失败 → 只补 tag 32 导出仍失败 → +keep-list 76 导出全绿）",
+   "fixed_in": "m0/RESULTS.md §9「宿主配置的实测代价」表"
+  },
+  {
+   "id": "R-003",
+   "text": "符号缺口检查器直接比 env 导入与宿主导出",
+   "why": "该口径会**报假缺口**。`--export-dynamic` 让 side 既导入又导出同一符号（GOT 自引用），而 emscripten 的 `resolveSymbol` 查 `wasmImports → localScope → moduleExports` —— side 自己的导出是合法解析源。实测同一条夹具：不扣自导出报 2 个缺口，扣掉后只有 1 个真缺口（`_ZNSt3__213basic_ostreamIcNS_11char_traitsIcEEElsEm`，它在宿主里既无定义也不在导出表）。",
+   "evidence": "node m0/check-symbol-gap.mjs（已实现修正口径）；对照：原口径见 SPEC v2 §5.2",
+   "fixed_in": "m0/check-symbol-gap.mjs（扣 sideExports + tag 单列）；SPEC v3 §5.4 已采纳"
+  },
+  {
+   "id": "R-004",
+   "text": "去掉了 -fwasm-exceptions 就必须装不上",
+   "why": "SPEC §9.5 与 §4.4 的 v2 原文预期「`LinkError: Incompatible version`」。实测（6.0.12 + LLVM 24）**装得上**：`PASS dlopen`、通过 9 项检查，直到第一次 C++ throw 才抛未捕获 `WebAssembly.Exception`。失效在**运行期首次 throw**，不在加载期。",
+   "evidence": "sh m0/run-counterexamples.sh（§9.5 节：no-EH side `PASS dlopen` 通过 9 项后才炸）",
+   "fixed_in": "m0/RESULTS.md 的 F-5；SPEC v3 §9.5 已按此更正措辞"
+  },
+  {
+   "id": "R-005",
+   "text": "本仓以 submodule 钉住 Einfacht",
+   "why": "submodule 的 gitlink **属于被追踪内容**，与「Einfacht 一切不进 git」冲突；且 `Einfacht/` 放在仓库根下会让 `GATE_REPO` 解析成 `Einfacht/` 而不是本仓，闸门会查错对象（`zreflect/gate.py` 的 `GATE_REPO` 默认取包目录上一级）。",
+   "evidence": "python3 -c \"import sys;sys.path.insert(0,'zreflect');from gate import GATE_REPO;print(GATE_REPO)\" ⇒ 打印本仓根",
+   "fixed_in": "机制层 vendored 到仓库根（zreflect/ + reflect-hooks/ + gates-selftest.sh），当普通文件追踪"
+  },
+  {
+   "id": "R-006",
+   "text": "裸数字判据会拦住手抄的测量值",
+   "why": "在**本仓的采集器实现**上不成立过一段时间：`_artifact()` 与 `_run()` 取回的值是**字符串**，而 `check_facts.problems()` 的裸数字判据只查 `isinstance(v, int)` ⇒ 字符串值的键**根本不进扫描**，手抄同样的数字全绿。实测复现：把「19653 字节」写进 STATE.md 正文，闸门报 OK。值型别错 = 判据静默失效（这正是本系统最恨的「命令成功、值稳定、复跑永远通过，而它量的不是想量的」仪器失真家族）。",
+   "evidence": "python3 zreflect/check_facts.py（在 STATE.md 正文插入「19653 字节」后应报裸数字；修前 rc=0、修后 rc=1）",
+   "fixed_in": "zreflect/facts.py 的 `_artifact_int()`（ARTIFACT 值转 int）+ `gates_total` / `m0_runner_scripts` / `clang_major` / `lld_major` 同样转 int"
+  },
+  {
+   "id": "R-007",
+   "text": "基线配置是 -O1（所以 wasm-opt 还有后处理空间）",
+   "why": "写 handoff 时我把 `m1/build-clang-wasm.sh` 里的 `-DCMAKE_C_FLAGS=\"-O1\"` 当成了实际优化档，并据此论证「体积不在可被 Binaryen 消掉的冗余里」。**两处都错**：(1) 基线实际是 `-O3` —— `CMAKE_BUILD_TYPE=Release` 会在 `-O1` 之后追加 `-O3 -DNDEBUG`，而 emcc 认**最后一个** `-O`（实测 `ninja -t commands` 里两个旗标同时在）；(2) 因此那条论证的依据（「wasm-opt 只省 36 KB」）的真实原因是**链接期 binaryen 已经按 -O3 跑过一遍**，不是在它输出上再跑一遍的结果。结论碰巧对、理由是错的 —— 这类必须记，否则下一个 agent 会拿错误理由去推别的结论。由隔壁在 OPT-RESULTS.md §0 抓出。",
+   "evidence": "ninja -C m1/build-clang -t commands tools/clang/lib/Basic/CMakeFiles/obj.clangBasic.dir/Version.cpp.o | grep -oE '\\-O[0-9s]+'",
+   "fixed_in": "m1/OPT-REVIEW.md §2；m1/OPT-RESULTS.md §0（隔壁的原始发现）"
+  },
+  {
+   "id": "R-008",
+   "text": "「brotli ≤ 15 MB」大概不成立",
+   "why": "同一个坑上**两轮 agent 各错一次、方向相反**，所以记一条：(1) 第一轮说「卡在 LLVM 自己的 CrashRecoveryContext，需要改源码」—— 错，那是纯旗标问题；(2) 第二轮复核把根因修正为「旗标冲突 + builtins 变体选错」（**对**），但给出的修法是加 `-sSUPPORT_LONGJMP=wasm` —— **这一条恰是制造故障的开关**。实测：带它 ⇒ emcc 落到 `Exceptions.WASM_LEGACY`（`settings.WASM_LEGACY_EXCEPTIONS` 默认 true）⇒ 链 `libclang_rt.builtins-legacysjlj`（无 `emscripten_longjmp`）⇒ 失败；**不设**它 ⇒ 落到 `Exceptions.EMSCRIPTEN` ⇒ 链 `libclang_rt.builtins.a`（有该符号）⇒ **成功**（48,069,274 B raw、brotli 12,614,129、验收 10 PASS）。机制在 `tools/system_libs.py:898` 的 `get_default_variation`。第二轮之所以错，是它的「独立验证」用了只声明 `emscripten_longjmp` 的最小夹具 —— 夹具里没有 `CrashRecoveryContext`，走的 builtins 选择路径与真目标不同 ⇒ **夹具过了不等于真目标过了**（本仓「仪器量的不是想量的」家族的又一例）。 （本条的 `text` 取自我实际写下的措辞——OPT-REVIEW 写的是「15 MB 这个目标…大概不成立」、问卷 C0 标题是「「brotli ≤ 15 MB」大概不成立」；取后者，因为它是两处的公共子串。）",
+   "evidence": "EXP_JOBS=22 bash m1/exp-run.sh lean_nosjlj（失败：wasm-ld: undefined symbol: emscripten_longjmp）；去掉 -sSUPPORT_LONGJMP=wasm 后重跑 m1/exp-run.sh lean_nosjlj，ninja 一把过（成功，48069274 B / brotli 12614129）。两趟记录都在 m1/evidence/opt-lean_nosjlj.log（失败那次的报错原文附在文件末尾）",
+   "fixed_in": "m1/OPT-RESULTS.md §5.2.2（含正确 flag 全文）；m1/OPT-REVIEW.md §5（对复核的再更正）；m1/exp-run.sh 的 lean_nosjlj 配置"
+  },
+  {
+   "id": "R-009",
+   "text": "gzip 体积是一个只取决于字节流的量（`gzip -9 -c` 就够）",
+   "why": "**不成立**：GNU `gzip -9 -c` 会把**输入文件名**写进 gzip 头，于是同一份字节流换个路径/文件名就量出不同的值（实测同一个 48,069,274 B 的 wasm：在 A 路径 17,317,088、换到 B 路径 17,317,077，差的就是名字长度）。这把「体积」这个本该是内容属性的量，变成了**量它的路径的函数** ⇒ 复跑必然对不上，且对不上时看不出是谁错。同一个量还有第三个值：Python 的 `gzip.compress(...,9)` 给 17,308,255 —— 与 GNU `-9 -n` 的 17,170,777 差 137 KB。两者都「对」，但**混用就是两个口径**（本仓台账里 `m1_clang_wasm_gzip` 出自 GNU `-9 -c`，而我补的 `lean_nosjlj_clang_wasm_gzip` 最初混进过 python 的值，是这次发现它的起因）。修法：一律 `gzip -9 -nc`（`--no-name`：去掉文件名与时间戳），并只用一种工具。",
+   "evidence": "gzip -9 -c <f> | wc -c  → 17317088；gzip -9 -nc <f> | wc -c → 17317077；python3 -c 'import gzip;print(len(gzip.compress(open(f,\"rb\").read(),9)))' → 17308255（三者同一份文件）",
+   "fixed_in": "m1/exp-build.sh 的 measure()（改用 -nc，并写明原因）；m1/OPT-RESULTS.md §5.2.2 的口径说明；m1/build-clang-wasm.sh 的基线行**故意未改**（交接单要求基线行为不动，且它量的是固定 basename ⇒ 复跑一致；差异已写在报告里）"
+  },
+  {
+   "id": "R-010",
+   "text": "SPEC §6 的 15 MB 预算「到不了」（超 41%）",
+   "why": "**比较口径错了，结论因此反了。** 我拿**三资产总量**（clang + lld + sysroot = 22.80 MB）去比 15 MB，得出「超 41%、到不了」，并把这条写进了 README、OPT-RESULTS §0、问卷 C0 与 §8 待办。但 SPEC §6 的原句是「brotli 后 **≤ 15 MB（首拉）**，支持**分片懒加载** + 浏览器缓存」——**限定词是「首拉」**。按首拉算：clang.wasm 12,614,129 + clang.js 18,682 + sysroot.tar 1,675,293 = **14,308,104 B（14.31 MB）⇒ 达标，余量 0.69 MB**。lld 不计入首拉有两处独立支撑：(1) 驱动里 lld 本来就是懒加载（`driver/toolchain.mjs` 的 `async lld()` 带 `if (this._lld) return this._lld`，只有链接时才 require）；(2) SPEC §6 自己点名支持分片懒加载。**但我也不宣称「达标」是定论**：SPEC 同一段的表格把三资产求和叫「合计 13.07 MB」（总量口径），与括号里的「首拉」**自相矛盾**，两个口径差 8.5 MB、结论相反 ⇒ 已升到问卷 C0 请委托人裁决。这条的教训是**比预算前先把预算的限定词读全**——我三轮实验都在优化总量，而预算从来没说它管总量。",
+   "evidence": "bash m1/exp-firstload.sh ⇒ ARTIFACT firstload_brotli 14308104 / firstload_plus_lld_brotli 22803407；产地 m1/evidence/opt-firstload.log",
+   "fixed_in": "m1/OPT-RESULTS.md §0.1（新增，含两个口径并列）；to-questionnaire-clang-wasm-m1.md C0（改成单一裁决问题）；README.md 的体积段；新增量测件 m1/exp-firstload.sh"
+  },
+  {
+   "id": "R-011",
+   "text": "要达标只剩「只支持 C」这条路（丢掉整个 C++ 前端）",
+   "why": "**拍脑袋写的，实测证伪。** 我在 OPT-RESULTS §8 与问卷 C0 写过「唯一可能达标的方向是只支持 C——丢掉整个 C++ 前端（libclangSema 27 MB + libclangAST 25 MB 是所有库里的前两名）」。两处都错：(1) 那两个库**不是「C++ 前端」**，是 C/C++ **共用**的词法/语法/语义/常量求值——按链接器 map 逐符号归因，`SemaDecl.cpp` 一个共用文件里就有 383 处 `CXX`；(2) 把所有「非 C 语言特性」按文件名全砍光的**乐观上限**（模板/概念/协程 5.31% + OpenMP 4.02% + ObjC 1.19% + HLSL 1.02% + CUDA/HIP/SYCL 0.51% = CODE 段 12.05%），外推 brotli 也只到约 11.09 MB，加 lld 8.50 MB = **19.59 MB，仍超 15 MB**；且上游**没有**「只编 C」的构建开关（grep CLANG_ENABLE_C_ONLY 为空），要做只能改源码。这条错的性质与 R-007 同类：**用「哪个库最大」代替「哪个库能砍」**——库大不等于可去，共用库尤其如此。",
+   "evidence": "python3 m1/exp-map-attrib.py --make-map /tmp/mapbuild/clang.map --build m1/build-exp-lean_nosjlj ⇒ CODE 段归因 + 非 C 特性 12.05% + 外推 19.59 MB",
+   "fixed_in": "m1/OPT-RESULTS.md §5.3（新增实测表，替换原拍脑袋判断）；to-questionnaire-clang-wasm-m1.md C0 末尾的更正段；新增分析件 m1/exp-map-attrib.py"
+  },
+  {
+   "id": "R-008",
+   "text": "「brotli ≤ 15 MB」大概不成立",
+   "why": "我用**三资产总量**（clang+lld+sysroot = 22.80 MB brotli）去比 15 MB。但 SPEC §6 原文是「brotli 后 ≤ 15 MB（**首拉**），支持分片懒加载 + 浏览器缓存」——口径是**首拉**（只编不链 = clang.wasm + 胶水 + sysroot），lld 是首次链接时才拉的懒加载分片。按首拉算：**14.31 MB，达标**（余量 0.69 MB）。这条错判写进了 OPT-REVIEW、问卷 C0 和 STATE.md，会误导委托人去改一个不用改的预算。 （本条的 `text` 取自我实际写下的措辞——OPT-REVIEW 写的是「15 MB 这个目标…大概不成立」、问卷 C0 标题是「「brotli ≤ 15 MB」大概不成立」；取后者，因为它是两处的公共子串。）",
+   "evidence": "bash m1/exp-firstload.log（ARTIFACT firstload_brotli = 14308104）；SPEC §6 原文「（首拉），支持分片懒加载」",
+   "fixed_in": "m1/OPT-RESULTS.md（隔壁的口径更正）；STATE.md；to-questionnaire-clang-wasm-m1.md 的 C0 已撤"
+  },
+  {
+   "id": "R-009",
+   "text": "wasm64 需要第二套 clang/lld 构建产物",
+   "why": "我以为两档要像 sysroot 那样各建一套。实测：**编译器是多目标的** —— 同一个 clang.wasm 加 `--target=wasm64-unknown-emscripten` 就产出真 64 位对象（memory limits flags 带 0x04 位），同一个 lld.wasm 加 `-mwasm64` 就能链。两档只差 sysroot 的 `pic/` 子树（`crtbegin-mt.o` md5 各异），`include/` 共享。",
+   "evidence": "node driver/acceptance-wasm64.mjs（wasm32 976 B memory64=false / wasm64 994 B memory64=true，10 PASS）",
+   "fixed_in": "driver/RESULTS.md §4b；driver/acceptance-wasm64.mjs"
+  },
+  {
+   "id": "R-010",
+   "text": "targets_built: ['wasm32'] —— wasm64 tar not shipped because its crtbegin is generated on demand",
+   "why": "发布包只装 wasm32 档 sysroot，理由是「wasm64 的 crtbegin 按需生成」。**那个生成路径在代码里不存在** —— driver 只有 `_hasCrt()` 做存在性检查，没有任何生成逻辑。实际行为：`_hasCrt('wasm64')=false` ⇒ 链接行静默丢掉 crt ⇒ `compile({target:'wasm64'})` **仍返回 ok:true**，产物缺 `_emscripten_tls_init` ⇒ 下游宿主 dlopen 时报 `TypeError: tlsInitFunc is not a function`，症状完全不指向「包内少一个 crt 文件」。三个信号互相矛盾：`DELIVERY.md` 写「wasm64 也支持」、manifest 写 `['wasm32']`、`compile()` 返回 ok。由下游以 issue #1 报出（附最小复现）。",
+   "evidence": "node release/check-release.mjs（修复后 27 PASS；修复前 wasm64 那条编译返回 ok:true 但导出无 _emscripten_tls_init）",
+   "fixed_in": "driver/toolchain.mjs 的 precheck 硬失败 + 按 target 选 tar（bundle.tars）；release/make-release.sh 同时发布两档 sysroot；manifest.targets_built 改 ['wasm32','wasm64'] 并加 sysroots 映射"
+  },
+  {
+   "id": "R-012",
+   "text": "v0.1.2 已发布、13→14 条（多了 compile-core.mjs，因为它现在真的在包里）",
+   "why": "**与发布资产不符**（宿主 mail/044/本仓 013 逐件核字节抓出）。14 条只存在于工作树 `release/out/`——修复提交 `149e72b`（14:47:23）晚于 GitHub release 发布（14:39:02）**8 分钟**，v0.1.2 已按 13 条打包发出。我在 `mail/007` 里写那句时，把「工作树重生成」当成了「已发布」。根因形状与 R-010 同族但更细：**不是「清单没跟上」，是「声明发布状态时没有对账已发布资产**」——检查器读的是 `release/out/`（工作树），没有一步从已发布 tar 反读。",
+   "evidence": "tar tzf release/llvm-wasm-bundle-v0.1.2.tar.gz | grep compile-core ⇒ 空；gh release view v0.1.2 --json publishedAt ⇒ 2026-10-15T06:39:02Z；git show -s 149e72b ⇒ 14:47:23 +0800",
+   "fixed_in": "v0.1.3 重发（修复已在 make-release.sh 的 glob 里）；release/check-published.mjs 反读对账器（发布后判据）"
+  },
+  {
+   "id": "R-013",
+   "text": "v0.1.3 的 `driver/compile-core.mjs` sha256 是 `e2588d2…`（`mail/014` §④ 写的）",
+   "why": "**这个 sha 是编的**（宿主 `mail/015` 逐处复跑抓出）。实测 bundle 内 / `release/out/` / 宿主站点 / 重跑 manifest 四处一致都是 `c5f4b873…`；`e2588d2` 在本仓任何 manifest、任何提交内容里都**从未出现过**（`git log -S` 全历史为空，只在 `mail/014` 那封信里）。根因形状：写回信时凭印象填了一个 sha，而**信不进任何闸门**——`check_facts` 只扫 `REFLECT_DOCS` 列的文档，`mail/` 不在其中（刻意的：mail 是往来记录，不是断言）。这与我此前对内容仓提的纪律是同一个：**信里引台账数字写键名，不写数值**。这次连键名都没写，直接写了一个不存在的值。",
+   "evidence": "tar xzOf release/llvm-wasm-bundle-v0.1.3.tar.gz ./driver/compile-core.mjs | sha256sum ⇒ c5f4b87318df8f80…；release/out/manifest.json 的 driver/compile-core.mjs ⇒ c5f4b873…；git log --all -S e2588d2 ⇒ 空",
+   "fixed_in": "mail/014 §④ 已就地标注笔误并指向 manifest；回信 mail/017 说明。**制度层未变**：mail 仍不进闸门（信任边界），所以这条只能靠人守 —— 写进 STATE 的坑清单"
+  }
+ ]
 }

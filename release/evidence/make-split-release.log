@@ -1,0 +1,31 @@
+payload: 14 assets（元数据未进载荷）
+  预计 14 条 entry / 106 个 asset（分片 + 1 manifest）
+  toolchain/LICENSE: 34,523 B → 1 块 × 3 编码
+  toolchain/LICENSE-EMSCRIPTEN.txt: 5,093 B → 1 块 × 3 编码
+  toolchain/LICENSE-LLVM.txt: 15,141 B → 1 块 × 3 编码
+  toolchain/clang.js: 76,240 B → 1 块 × 3 编码
+  toolchain/clang.wasm: 48,069,274 B → 10 块 × 3 编码
+  toolchain/lld-wasm-only.js: 72,686 B → 1 块 × 3 编码
+  toolchain/lld-wasm-only.wasm: 33,358,910 B → 7 块 × 3 编码
+  toolchain/sysroot-headers.tar: 20,654,080 B → 4 块 × 3 编码
+  toolchain/sysroot-headers.wasm64.tar: 20,654,080 B → 4 块 × 3 编码
+  toolchain/driver__abi.mjs: 7,781 B → 1 块 × 3 编码
+  toolchain/driver__compile-core.mjs: 5,798 B → 1 块 × 3 编码
+  toolchain/driver__sysroot-bundle.mjs: 2,621 B → 1 块 × 3 编码
+  toolchain/driver__tar-reader.mjs: 1,782 B → 1 块 × 3 编码
+  toolchain/driver__toolchain.mjs: 9,492 B → 1 块 × 3 编码
+
+✅ /mnt/hdd/zcode-projects/LLVM-wasm/release/split/manifest.json
+   id=LLVM-wasm/v0.1.5  products=['toolchain']  entries=14  chunkSize=5242880
+
+=== 634 PASS / 0 FAIL ===
+ARTIFACT split_entries 14
+ARTIFACT split_assets 105
+ARTIFACT split_zstd_bytes 26683734
+ARTIFACT split_max_chunk 5242880
+flat-name check: 105 assets, all present at root, none contains a slash
+
+== split release ready at /mnt/hdd/zcode-projects/LLVM-wasm/release/split ==
+上传（与整包 tar.gz 挂在同一个 tag 下，旧形态不删）：
+  gh release upload v0.1.5 /mnt/hdd/zcode-projects/LLVM-wasm/release/split/manifest.json /mnt/hdd/zcode-projects/LLVM-wasm/release/split/*.zstd.* /mnt/hdd/zcode-projects/LLVM-wasm/release/split/*.gzip.* /mnt/hdd/zcode-projects/LLVM-wasm/release/split/*.identity.* --clobber
+(105 个分片 + manifest.json；每个 ≤ 5 MiB)

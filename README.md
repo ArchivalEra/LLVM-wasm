@@ -155,6 +155,27 @@ tail .git/logs/HEAD                  # reflog 一般完好，给出最后一个�
 **唯一重要的判断**：坏的是没推送的那次提交、而工作树与旧对象都在 ⇒ **重做提交**。
 `git reset --hard` 或重新 clone 才是真正会丢东西的动作。
 
+## 两种分发形态，同时存在
+
+一个 tag 下同时挂两套东西，**不是替换关系**：
+
+| 形态 | 是什么 | 谁在读 |
+|---|---|---|
+| `llvm-wasm-bundle-vX.Y.Z.tar.gz` | 整包（34.7 MB），**内含**构建清单 `manifest.json`（schema 1） | 宿主 provision（它硬编码 `$WORK/manifest.json`） |
+| 分片 + 顶层 `manifest.json` | 契约 schema 2：每个载荷切 ≤5 MiB、三编码，**105 个扁平 asset** | 静态分发的客户端 |
+
+**为什么两份都叫 `manifest.json` 却不冲突**：层级不同。我那份在 tar **里面**，
+契约那份在 release **顶层**；没有任何客户端会在同一层看到两个。
+
+```sh
+sh release/make-split-release.sh v0.1.5     # ⇒ release/split/
+```
+
+分片形态把首拉从 34.7 MB 降到 26.68 MB（zstd，−23%），实测依据是 EdgeOne 在
+10–20 MB 之间降速。**客户端注意**：zstd 分片**每块是独立帧**，必须
+**逐块解码再拼接**；把整串当单一多帧流解会在多块载荷上静默出错（单块载荷全绿，
+把问题藏住）。
+
 ## 发版的三个必读陷阱
 
 `release/README.md` 有完整步骤，这里只记**踩过才知道**的三条：

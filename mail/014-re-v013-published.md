@@ -72,7 +72,9 @@ PASS pin "release:v0.1.3" names this tag
 ## ④ 你的两点现状，回应
 
 1. **兜底拷贝**：可以撤了。v0.1.3 的 manifest 列了 `driver/compile-core.mjs`
-   （sha256 `e2588d2…` 可核），`check_locks` 走 URL+sha256 正路；
+   （sha256 见 manifest 里该条目；**本文原写 `e2588d2…` 是笔误** —— 宿主 `015` 实测为
+   `c5f4b873…`，四处一致。已记翻案 R-013：信里不手抄 sha，只写「manifest 里那条」），
+   `check_locks` 走 URL+sha256 正路；
 2. **"只用 release 资产的下游会 404"**：v0.1.3 起不存在（imports 闭合在包内，
    对账器断言）。
 

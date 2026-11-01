@@ -162,6 +162,7 @@ MAKE_LOG = repo("release/evidence/make-release.log")
 SEAM_LOG = repo("driver/evidence/check-compile-seam.log")
 ZTII_LOG = repo("driver/evidence/check-ztii-regression.log")
 PUB_LOG = repo("release/evidence/check-published.log")
+SPLIT_LOG = repo("release/evidence/make-split-release.log")
 
 BROWSER_INPUTS = ("browser/worker.mjs", "browser/index.html", "browser/check-browser.mjs")
 
@@ -445,6 +446,18 @@ def measure():
              "同一产物在真 wasm64 宿主里的 dlopen 验收 PASS 数"),
             ("content_list_entries", MAKE_LOG,
              "content-list（接缝 schema 2）条目数 —— 给内容收口方的记录"),
+            # 分片静态分发（契约 schema 2；额外内容仓 mail/016 = 本仓 016）。
+            # 产地 = release/evidence/make-split-release.log 的 ARTIFACT 行，
+            # 由 release/make-split-release.sh 打（它调的是契约仓的工具，
+            # 本仓不重写生成器）。
+            ("split_entries", SPLIT_LOG,
+             "分片 release 的条目数（== 载荷数；元数据不进载荷）"),
+            ("split_assets", SPLIT_LOG,
+             "分片 release 的 asset 总数（三编码合计；每个 ≤ 5 MiB）"),
+            ("split_zstd_bytes", SPLIT_LOG,
+             "zstd 编码合计字节（与整包 tar.gz 对比 = 首拉省多少）"),
+            ("split_max_chunk", SPLIT_LOG,
+             "最大分片字节（契约硬限 5242880；超了客户端就不合规）"),
             ("published_check_pass", PUB_LOG,
              "发布件反读对账 PASS 数（--tag：从 GitHub 下载的已发布字节）"),
             ("ztii_regression_pass", ZTII_LOG,
