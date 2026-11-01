@@ -137,6 +137,24 @@ python3 toolchain/emsdk/emsdk.py install <版本> && python3 toolchain/emsdk/ems
 不手写文件清单——手写元组与 glob 共存即双产地（实测对不上过）。判据双证：
 往 `driver/` 丢新文件 ⇒ 24 条见证红。见 `zreflect/measure_llvm_wasm.py` 的 `_hash_globs`。
 
+## 断电之后：`.git` 坏了怎么读
+
+本机经历过两次断电，第二次打坏了 git 的内部状态。症状看着像三个独立故障，
+其实是同一个事件（关机时 git 正在写盘）。**先只读诊断，别急着修**：
+
+```sh
+ls -la .git/index                    # 0 字节 ⇒ 索引没了（可重建，不丢数据）
+cat .git/refs/heads/main             # 打出 "refs/heads/main" 而非 sha ⇒ ref 写坏
+find .git/objects -type f -size 0    # 空对象 = 写了一半的那次提交
+tail .git/logs/HEAD                  # reflog 一般完好，给出最后一个真提交的 sha
+```
+
+修复四步：用 reflog 的好 sha 重写 ref（**带结尾换行**）、`rm .git/index && git reset`、
+删掉空对象、`git fsck`（应只剩悬空对象，无害）。
+
+**唯一重要的判断**：坏的是没推送的那次提交、而工作树与旧对象都在 ⇒ **重做提交**。
+`git reset --hard` 或重新 clone 才是真正会丢东西的动作。
+
 ## 事实系统的分层（同步上游时唯一要懂的一件事）
 
 机制层是上游的，数据层是本仓的，两者在**不同的文件**里：
