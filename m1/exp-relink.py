@@ -34,7 +34,7 @@ EMSDK = os.environ.get("EMSDK", os.path.join(ROOT, "toolchain/emsdk"))
 EM = os.path.join(EMSDK, "upstream/emscripten")
 
 
-def nm_command(build, tool, out_js):
+def nm_command(build, tool):
     """ninja's own link command, so we inherit the exact library list.
 
     `ninja -t commands <target>` prints every command in the target's closure
@@ -67,7 +67,8 @@ def link_argv(cmd, out_js):
 def measure(label, path, quality):
     import brotli
     raw = os.path.getsize(path)
-    br = len(brotli.compress(open(path, "rb").read(), quality=quality))
+    with open(path, "rb") as fh:
+        br = len(brotli.compress(fh.read(), quality=quality))
     print(f"ARTIFACT {label}_raw {raw}")
     print(f"ARTIFACT {label}_brotli {br}")
     print(f"  {label}: raw={raw:,} brotli-q{quality}={br:,}")
@@ -89,7 +90,7 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
     out_js = os.path.join(out_dir, f"{args.tool}.js")
 
-    argv = link_argv(nm_command(args.build, args.tool, out_js), out_js)
+    argv = link_argv(nm_command(args.build, args.tool), out_js)
     argv += shlex.split(args.emcc_flags)
     print(f"== relink {args.tool} -> {args.name}")
     print(f"   inputs: {sum(1 for a in argv if a.endswith(('.o', '.a')))}  "

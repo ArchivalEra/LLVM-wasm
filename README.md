@@ -153,6 +153,20 @@ merge。**判据**：`node release/check-vendored-sync.mjs`（闸门 `check_vend
 每次提交自动跑）——从远端重拉 pin 那个 commit，逐字节比；本仓自有文件在
 `VENDORED.json` 的 `local` 里显式列出，它们不同**不是**漂移。
 
+## 代码质量：本地判据，不等外部扫描
+
+```sh
+python3 -m ruff check      # ⇒ All checks passed
+```
+
+配置在 `ruff.toml`：只选 GitRoll 能机械判定的那几族（`F`/`E9`/`B`/`C901`/`SIM`），
+复杂度阈值**取 15 对齐扫描器**而不是 ruff 默认的 10 —— 否则修的是 ruff 的偏好，
+不是被报的缺陷。`zreflect/*.py` 整层豁免：那是上游的字节，改了会让 vendored 同步闸门红。
+
+每条历史告警的处置（`fix` / `accept` + 理由）记在
+[`gitroll-dispositions.json`](gitroll-dispositions.json)。**故意不接进闸门** ——
+台账本身也会腐烂，接进去只会多一个要维护的判据。判据只有一条：`ruff check` 绿。
+
 ## 纪律
 
 本仓用 [Einfacht](https://github.com/ArchivalEra/Einfacht)（vendored 在 `zreflect/`）：

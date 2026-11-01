@@ -22,8 +22,10 @@ const OUT = join(ROOT, 'acceptance');
 
 let fails = 0, passCount = 0;
 const check = (what, ok, detail = '') => {
-  if (ok) passCount++; else fails++;
-  console.log(`${ok ? 'PASS' : 'FAIL'} ${what}${detail ? ': ' + detail : ''}`);
+  if (ok) { passCount++; } else { fails++; }
+  const verdict = ok ? 'PASS' : 'FAIL';
+  const suffix = detail ? ': ' + detail : '';
+  console.log(`${verdict} ${what}${suffix}`);
 };
 
 function stageTree(fs, hostPath, fsPath) {

@@ -67,7 +67,7 @@ check('AGPL stays on this repo\'s own files',
 
 // ------------------------------------------------------------------ §8 shape
 console.log('\n== SPEC §8: toolchain + host-baseline version strings are recorded ==');
-check('toolchain version string present', !!(man.toolchain && man.toolchain.emcc),
+check('toolchain version string present', !!man.toolchain?.emcc,
       (man.toolchain?.emcc || '').slice(0, 60));
 check('host baseline records the four contract axes',
       !!(man.host_baseline && 'exceptions' in man.host_baseline
@@ -131,6 +131,14 @@ for (const [target, abi] of [
   ['wasm32', { exceptions: man.host_baseline.exceptions, pthread: man.host_baseline.pthread, memory64: false }],
   ['wasm64', { exceptions: man.host_baseline.exceptions, pthread: man.host_baseline.pthread, memory64: true }],
 ]) {
+  // `target` is a string here (the list above is pairs of strings) and gets
+  // interpolated into every check name. Assert it: the scanner's "[object
+  // Object] when stringified" smell is about this shape, and an object here
+  // would make all four check names read "compile([object Object])" while
+  // still passing -- a label bug no assertion would catch.
+  if (typeof target !== 'string') {
+    throw new Error(`loop invariant broken: target is ${typeof target}, not a string`);
+  }
   if (!SYSROOTS[target]) { console.log(`   (no sysroot for ${target}; skipping)`); continue; }
   const r = await tc.compile({ source: SOURCE, target, abi });
   check(`compile(${target}) succeeds from the bundle alone`, r.ok === true,

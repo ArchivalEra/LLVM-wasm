@@ -14,20 +14,22 @@ PASS relocatable (__memory_base)
 
 == [3] symbolGap (SPEC 5.4) ==
 PASS gap report present
-   needs 2 symbols, 0 tags; hostChecked=true
+   needs 2 symbols, 0 tags; hostChecked=false
 PASS gap report exposes the three named fields
-   missing: 0 fns, 0 tags
+PASS no host ⇒ hostChecked is false (does not claim zero gaps)
 
 == [4] reverse assertions (SPEC 4.5 contract) ==
-PASS unknown abi.exceptions is refused: abi.exceptions must be one of none|emscripten|wasm-legacy|wasm-standard
-PASS unbuilt target wasm64 is refused (not silently wasm32): target wasm64 not built yet (M4); refusing rather than mislabelling
+PASS unknown abi.exceptions is refused: abi.exceptions must be one of none|emscripten|wasm-legacy|wasm-standard, got nonsense
+PASS target wasm64 compiles when the sysroot serves it
+PASS wasm64 product carries the TLS entry: __wasm_call_ctors,_emscripten_tls_init,minifn
+PASS unknown target wasm128 is refused: target must be wasm32 or wasm64, got wasm128
 PASS no source and no files is refused: compile() needs source or files
 
 == [5] symbolGap is a pure function (no host ⇒ no false "all clear") ==
 PASS returns needs count without a host
 PASS does not fabricate missingFunctions without a host
 -- artifacts
-ARTIFACT driver_acceptance_pass 14
+ARTIFACT driver_acceptance_pass 17
 ARTIFACT driver_module_bytes 976
 
 === ALL PASS ===

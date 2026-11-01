@@ -20,7 +20,7 @@
 // Usage: node release/check-published.mjs --tag v0.1.3
 //        node release/check-published.mjs --tar release/llvm-wasm-bundle-v0.1.3.tar.gz
 import { spawnSync } from 'child_process';
-import { readFileSync, writeFileSync, mkdtempSync, existsSync } from 'fs';
+import { readFileSync, mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
@@ -164,8 +164,13 @@ if (!TAG && !FRESH) {
   if (repoFiles.status !== 0 || !repoFiles.stdout.trim()) {
     check('repo driver/ readable', false, 'ls driver/*.mjs failed');
   } else {
-    const repo = repoFiles.stdout.split('\n').map((l) => l.trim()).filter(Boolean).sort();
-    const inTar = [...files].filter((f) => f.startsWith('driver/') && f.endsWith('.mjs')).sort();
+    // Explicit comparator, not the default: these are path strings today, but
+    // the default sort is stringwise for ANY element type -- the day someone
+    // puts numbers or version strings here, a bare .sort() orders them wrong
+    // and the set comparison still "passes" because it only compares membership.
+    const byPath = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+    const repo = repoFiles.stdout.split('\n').map((l) => l.trim()).filter(Boolean).sort(byPath);
+    const inTar = [...files].filter((f) => f.startsWith('driver/') && f.endsWith('.mjs')).sort(byPath);
     const missingInTar = repo.filter((f) => !inTar.includes(f));
     const extraInTar = inTar.filter((f) => !repo.includes(f));
     check('every repo driver .mjs is in the bundle', missingInTar.length === 0,
@@ -191,8 +196,9 @@ if (!TAG && !FRESH) {
 // ------------------------------------------- the pin names this very tag (if --tag)
 if (TAG) {
   console.log('\n== the record pins the tag being served ==');
-  const pin = man.producer?.pin || '';
-  // manifest doesn't carry producer; the content-list does
+  // The manifest does not carry `producer`; the content-list does. Reading
+  // the pin from the manifest would be reading a field that is not there,
+  // so this takes it from the content-list only -- no fallback variable.
   const pinSrc = clJson.stdout.trim() ? JSON.parse(clJson.stdout).producer?.pin : '';
   check(`pin "${pinSrc}" names this tag`, pinSrc === `release:${TAG}`,
         pinSrc === `release:${TAG}` ? '' : `expected release:${TAG}`);

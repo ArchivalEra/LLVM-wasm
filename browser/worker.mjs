@@ -103,7 +103,7 @@ async function init(msg) {
   try {
     clangMod = await instantiate(msg.clangGlueUrl, msg.clangWasmUrl);
   } catch (e) {
-    log('CLANG INSTANTIATE THREW: ' + String(e && e.message).slice(0, 200));
+    log('CLANG INSTANTIATE THREW: ' + String(e?.message).slice(0, 200));
     throw e;
   }
   log('clang instantiated; installing sysroot…');
@@ -162,6 +162,6 @@ self.onmessage = async (e) => {
       post({ type: 'result', ...r });
     }
   } catch (err) {
-    post({ type: 'result', ok: false, error: String(err && err.message || err) });
+    post({ type: 'result', ok: false, error: String(err?.message || err) });
   }
 };

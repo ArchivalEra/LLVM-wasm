@@ -125,7 +125,7 @@ const ran = await page.evaluate(async ({ hostBase, soBytes }) => {
   try {
     const r = await window.__hostRun(hostBase, soBytes);
     return { rc: r.rc, lines: window.__lines.slice() };
-  } catch (e) { return { error: String(e && e.message || e).slice(0, 300), lines: window.__lines.slice() }; }
+  } catch (e) { return { error: String(e?.message || e).slice(0, 300), lines: window.__lines.slice() }; }
 }, { hostBase: `${base}/browser/host`, soBytes: compiled.bytes });
 
 if (ran.error) {

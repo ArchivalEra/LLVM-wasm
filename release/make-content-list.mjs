@@ -43,31 +43,48 @@ const man = JSON.parse(readFileSync(manPath, 'utf8'));
 // ------------------------------------------------------------------ form
 // Derived from what the BYTES are, not from a preference. A .tar is checked by
 // opening it (a mislabelled file would otherwise pass); the rest by kind.
-function deriveForm(filePath, name) {
-  if (name.endsWith('.tar')) {
-    // tar magic sits at offset 257 ("ustar")
-    const buf = readFileSync(filePath);
-    const magic = buf.toString('latin1', 257, 262);
-    if (magic.startsWith('ustar')) {
-      // count regular-file entries to describe it honestly
-      let off = 0, files = 0;
-      while (off + 512 <= buf.length) {
-        const hdr = buf.subarray(off, off + 512);
-        if (hdr.every((b) => b === 0)) break;
-        const size = parseInt(hdr.toString('utf8', 124, 136).replace(/\0.*$/, '').trim(), 8) || 0;
-        const type = String.fromCharCode(hdr[156] || 48);
-        if (type === '0' || type === '\0') files++;
-        off += 512 + Math.ceil(size / 512) * 512;
-      }
-      return { form: 'tree', content: ['tree', `${files} regular files`], files };
-    }
+function manifestEmccVersion(manifest) {
+  // The record's version string is the emcc version the bundle was built with.
+  // No parseable version => "unknown", said out loud; never `undefined`, which
+  // is what `(match || [, x])[1]` produces when the match fails.
+  const m = /\b(\d+\.\d+\.\d+)\b/.exec(manifest?.toolchain?.emcc ?? '');
+  return m ? m[1] : 'unknown';
+}
+
+function tarForm(filePath) {
+  // tar magic sits at offset 257 ("ustar")
+  const buf = readFileSync(filePath);
+  const magic = buf.toString('latin1', 257, 262);
+  if (!magic.startsWith('ustar')) {
     return { form: 'file', content: ['archive', 'not a tar (magic missing)'] };
   }
-  if (name.endsWith('.wasm')) {
-    const buf = readFileSync(filePath, { length: 8 });
-    const ok = buf[0] === 0x00 && buf[1] === 0x61 && buf[2] === 0x73 && buf[3] === 0x6d;
-    return { form: 'file', content: ['wasm', ok ? 'module' : 'NOT a wasm module'] };
+  const files = countTarMembers(buf);
+  return { form: 'tree', content: ['tree', `${files} regular files`], files };
+}
+
+/** Count regular-file entries by walking 512-byte headers. */
+function countTarMembers(buf) {
+  let off = 0, files = 0;
+  while (off + 512 <= buf.length) {
+    const hdr = buf.subarray(off, off + 512);
+    if (hdr.every((b) => b === 0)) break;
+    const size = parseInt(hdr.toString('utf8', 124, 136).replace(/\0.*$/, '').trim(), 8) || 0;
+    const type = String.fromCharCode(hdr[156] || 48);
+    if (type === '0' || type === '\0') files++;
+    off += 512 + Math.ceil(size / 512) * 512;
   }
+  return files;
+}
+
+function wasmForm(filePath) {
+  const buf = readFileSync(filePath, { length: 8 });
+  const ok = buf[0] === 0x00 && buf[1] === 0x61 && buf[2] === 0x73 && buf[3] === 0x6d;
+  return { form: 'file', content: ['wasm', ok ? 'module' : 'NOT a wasm module'] };
+}
+
+function deriveForm(filePath, name) {
+  if (name.endsWith('.tar')) return tarForm(filePath);
+  if (name.endsWith('.wasm')) return wasmForm(filePath);
   if (name.endsWith('.js')) return { form: 'js', content: ['emscripten glue'] };
   if (name.endsWith('.mjs')) return { form: 'file', content: ['javascript module'] };
   return { form: 'file', content: ['text'] };
@@ -110,7 +127,10 @@ for (const a of man.assets) {
     // "llvm-wasm-clang", and a consumer looking an asset up by name would get
     // two answers (measured on the first run of this script).
     name: `llvm-wasm-${a.name.replace(/\//g, '-')}`,
-    version: (man.toolchain.emcc.match(/\b(\d+\.\d+\.\d+)\b/) || [, 'unknown'])[1],
+    // The emcc version is the record's version string. A manifest without a
+    // parseable one must say "unknown" rather than silently emit undefined
+    // (which is what a fake match array with a hole in it used to do).
+    version: manifestEmccVersion(man),
     // site-relative per schema 2; the collector places the bytes here
     url: SITE_PREFIX + a.name,
     sha256: a.sha256,

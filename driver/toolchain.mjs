@@ -21,7 +21,7 @@ import { loadBundle, installBundle } from './sysroot-bundle.mjs';
 import { compileWith } from './compile-core.mjs';
 import { symbolGap, EXCEPTION_MODES } from './abi.mjs';
 export { symbolGap, EXCEPTION_MODES };
-import { join, dirname } from 'path';
+import { join } from 'path';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);

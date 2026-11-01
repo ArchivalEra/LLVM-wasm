@@ -12,7 +12,7 @@
 // Usage: node driver/acceptance-driver.mjs [--host <host.wasm>]
 import { join, dirname } from 'path';
 import { existsSync, writeFileSync, mkdirSync, readFileSync } from 'fs';
-import { Toolchain, symbolGap, EXCEPTION_MODES } from './toolchain.mjs';
+import { Toolchain, symbolGap } from './toolchain.mjs';
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), '..');
 const OUT = join(ROOT, 'driver', 'acceptance');

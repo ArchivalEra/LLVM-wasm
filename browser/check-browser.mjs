@@ -17,7 +17,7 @@
 // Usage: node browser/check-browser.mjs
 import { chromium } from 'playwright-core';
 import { createServer } from 'http';
-import { readFileSync, existsSync, mkdirSync, writeFileSync, statSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync, statSync } from 'fs';
 import { join, dirname, extname, relative } from 'path';
 import { createHash } from 'crypto';
 
@@ -131,7 +131,7 @@ for (const [key, source] of [['basic', FIXTURE], ['eh', EH_FIXTURE]]) {
     };
   }, source);
   check(`${key}: compile ok in browser`, r.ok === true, r.ok ? '' : r.error);
-  if (!r.ok && r.detail && r.detail.length) {
+  if (!r.ok && r.detail?.length) {
     console.log('   tool said:');
     for (const d of r.detail) console.log('     ' + d);
   }

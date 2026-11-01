@@ -42,8 +42,10 @@ extern "C" __attribute__((visibility("default"))) int minifn(int x) {
 let fails = 0;
 let passCount = 0;
 const check = (what, ok, detail = '') => {
-  if (ok) passCount++; else fails++;
-  console.log(`${ok ? 'PASS' : 'FAIL'} ${what}${detail ? ': ' + detail : ''}`);
+  if (ok) { passCount++; } else { fails++; }
+  const verdict = ok ? 'PASS' : 'FAIL';
+  const suffix = detail ? ': ' + detail : '';
+  console.log(`${verdict} ${what}${suffix}`);
 };
 
 // ------------------------------------------------------------- fs staging

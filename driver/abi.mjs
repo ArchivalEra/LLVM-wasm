@@ -66,19 +66,32 @@ export const MECHANICAL = new Set([
  * hostBytes may be null: the report then says hostChecked=false rather than
  * fabricating "no gaps" (zero-value rule).
  */
+function selfExported(sideExports, imports) {
+  // A side module with --export-dynamic both imports and exports the same
+  // symbol (GOT self-reference); the report names them so a reader can tell
+  // "host provides it" from "the module covers itself".
+  return [...sideExports].filter((n) => imports.some((i) => i.name === n));
+}
+
+/** imports the host must supply, minus the side's own exports and mechanics */
+function neededFrom(imports, sideExports) {
+  const fromHost = imports.filter((i) => i.module === 'env' || i.module.startsWith('GOT.'));
+  return [...new Set(fromHost.map((i) => i.name))]
+    .filter((n) => !MECHANICAL.has(n) && !sideExports.has(n));
+}
+
 export function symbolGap(sideBytes, hostBytes) {
   const side = new WebAssembly.Module(toU8(sideBytes));
   const imports = WebAssembly.Module.imports(side);
   const sideExports = new Set(WebAssembly.Module.exports(side).map((e) => e.name));
 
-  const need = [...new Set(imports
-    .filter((i) => i.module === 'env' || i.module.startsWith('GOT.'))
-    .map((i) => i.name))]
-    .filter((n) => !MECHANICAL.has(n) && !sideExports.has(n));
-
+  const need = neededFrom(imports, sideExports);
   const sideTags = imports.filter((i) => i.kind === 'tag').map((i) => i.name);
+  const self = selfExported(sideExports, imports);
 
   if (!hostBytes) {
+    // Zero-value rule: with no host to compare against, say hostChecked=false
+    // rather than fabricating "no gaps".
     return {
       ok: true,
       hostChecked: false,
@@ -86,7 +99,7 @@ export function symbolGap(sideBytes, hostBytes) {
       needsTags: sideTags.length,
       missingFunctions: [],
       missingTags: [],
-      sideSelfExported: [...sideExports].filter((n) => imports.some((i) => i.name === n)),
+      sideSelfExported: self,
     };
   }
 
@@ -102,7 +115,7 @@ export function symbolGap(sideBytes, hostBytes) {
     needsTags: sideTags.length,
     missingFunctions: need.filter((n) => !hostExports.has(n)),
     missingTags: sideTags.filter((n) => !hostTags.has(n)),
-    sideSelfExported: [...sideExports].filter((n) => imports.some((i) => i.name === n)),
+    sideSelfExported: self,
   };
 }
 

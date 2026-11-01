@@ -72,61 +72,98 @@ def make_map(build, out_map, tool='clang'):
     subprocess.run(argv, cwd=os.path.join(ROOT, build), env=env, check=True)
 
 
-def analyse(map_path, brotli_now):
-    sec = None
+def collect_symbols(map_path):
+    """Walk a --print-map file's CODE section into (total, by_archive, by_file, declared).
+
+    Split out of `analyse` so each function answers one question: this one
+    "what is in the map" (no printing), the next "what does it mean" (no
+    parsing). C901 was 14; ruff's default is 10 while the scan's threshold was
+    15, so the split is about the shape, not about beating a number.
+
+    `declared` is the LAST CODE section's declared size -- that is what the
+    original loop recorded (it reassigned on every CODE header), and a map
+    repeats CODE sections. Keeping that behaviour is the point of the split:
+    a refactor may not change a number.
+    """
     total = 0
+    declared = None
     by_archive = collections.Counter()
     by_file = collections.Counter()
-    declared = None
-    for raw in open(map_path, encoding='utf-8', errors='replace'):
-        s = SEC_RE.match(raw)
-        if s:
-            sec = s.group(3)
-            if sec == 'CODE':
-                declared = int(s.group(2), 16)
-            continue
-        if sec != 'CODE':
-            continue
-        m = SYM_RE.match(raw)
-        if not m:
-            continue
-        _off, size, src = m.groups()
-        try:
-            sz = int(size, 16)          # ← 十六进制
-        except ValueError:
-            continue
-        total += sz
-        am = re.search(r'(lib[A-Za-z0-9_]+\.a)\(([^)]+)\)', src)
-        if am:
-            by_archive[am.group(1)] += sz
-            by_file[(am.group(1), am.group(2))] += sz
-        else:
-            by_archive['(direct .o)'] += sz
-            by_file[('(direct .o)', os.path.basename(src))] += sz
+    sec = None
+    with open(map_path, encoding='utf-8', errors='replace') as fh:
+        for raw in fh:
+            s = SEC_RE.match(raw)
+            if s:
+                sec = s.group(3)
+                if sec == 'CODE':
+                    declared = int(s.group(2), 16)
+                continue
+            if sec != 'CODE':
+                continue
+            sym = parse_symbol(raw)
+            if sym is None:
+                continue
+            sz, archive, member = sym
+            total += sz
+            by_archive[archive] += sz
+            by_file[(archive, member)] += sz
+    return total, by_archive, by_file, declared
 
+
+def parse_symbol(raw):
+    """A CODE-section symbol line -> (size, archive, member), or None if unparsable."""
+    m = SYM_RE.match(raw)
+    if not m:
+        return None
+    _off, size, src = m.groups()
+    try:
+        sz = int(size, 16)          # hex
+    except ValueError:
+        return None
+    # re.ASCII, not bare `\w`: Python's `\w` also matches Unicode letters, while
+    # the original class was ASCII-only. No archive here has a non-ASCII name, so
+    # this is belt-and-braces -- but a mechanical rewrite must not change meaning.
+    am = re.search(r'(lib\w+\.a)\(([^)]+)\)', src, re.ASCII)
+    if am:
+        return sz, am.group(1), am.group(2)
+    return sz, '(direct .o)', os.path.basename(src)
+
+
+def analyse(map_path, brotli_now):
+    total, by_archive, by_file, declared = collect_symbols(map_path)
     print(f'CODE 段声明 {declared:,} B / 主符号行合计 {total:,} B '
           f'（覆盖率 {total/declared*100:.1f}%）' if declared else f'合计 {total:,} B')
     print('\n=== 按静态库（前 15）===')
     for k, v in by_archive.most_common(15):
         print(f'  {v:>11,}  {v/total*100:5.2f}%  {k}')
 
-    fam = collections.Counter()
-    for (_lib, f), v in by_file.items():
-        for name, rx in FAMILIES.items():
-            if re.search(rx, f):
-                fam[name] += v
-                break
+    fam = family_usage(by_file)
     print('\n=== 「非 C 语言特性」占用（按文件名判定 = 乐观上限）===')
     for k, v in fam.most_common():
         print(f'  {v:>11,}  {v/total*100:5.2f}%  {k}')
     s = sum(fam.values())
     print(f'  {s:>11,}  {s/total*100:5.2f}%  合计')
     if brotli_now:
-        opt = int(brotli_now * (1 - s / total))
-        print(f'\n乐观外推：clang brotli {brotli_now:,} -> 约 {opt:,} '
-              f'({opt/1e6:.2f} MB)')
-        print(f'  + lld 8,495,303 => 约 {(opt+8495303)/1e6:.2f} MB'
-              f'（15 MB 预算 {"达标" if opt+8495303 <= 15e6 else "仍超"}）')
+        report_extrapolation(brotli_now, total, s)
+
+
+def family_usage(by_file):
+    """Attribute bytes to the first matching family (a family per symbol)."""
+    fam = collections.Counter()
+    for (_lib, f), v in by_file.items():
+        for name, rx in FAMILIES.items():
+            if re.search(rx, f):
+                fam[name] += v
+                break
+    return fam
+
+
+def report_extrapolation(brotli_now, total, s):
+    opt = int(brotli_now * (1 - s / total))
+    print(f'\n乐观外推：clang brotli {brotli_now:,} -> 约 {opt:,} '
+          f'({opt/1e6:.2f} MB)')
+    print(f'  + lld 8,495,303 => 约 {(opt+8495303)/1e6:.2f} MB'
+          f'（15 MB 预算 {"达标" if opt+8495303 <= 15e6 else "仍超"}）')
 
 
 def main():

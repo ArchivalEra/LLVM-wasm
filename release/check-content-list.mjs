@@ -30,8 +30,10 @@ const RECORD = opt('--record', join(ROOT, 'release/content-list.json'));
 
 let fails = 0, passCount = 0;
 const check = (what, ok, detail = '') => {
-  if (ok) passCount++; else fails++;
-  console.log(`${ok ? 'PASS' : 'FAIL'} ${what}${detail ? ': ' + detail : ''}`);
+  if (ok) { passCount++; } else { fails++; }
+  const verdict = ok ? 'PASS' : 'FAIL';
+  const suffix = detail ? ': ' + detail : '';
+  console.log(`${verdict} ${what}${suffix}`);
 };
 
 for (const f of [RECORD, join(BUNDLE, 'manifest.json')]) {
@@ -74,8 +76,16 @@ for (const e of rec.entries) {
   const buf = readFileSync(p);
   const sizeOk = e.size == null || buf.length === e.size;
   const shaOk = sha(p) === e.sha256;
-  check(`${e.name}`, sizeOk && shaOk,
-        sizeOk && shaOk ? `${buf.length} B` : `${sizeOk ? '' : `size ${buf.length} != ${e.size}; `}${shaOk ? '' : 'sha256 mismatch'}`);
+  // Detail built one reason per statement. The nested-ternary version had three
+  // branches on one line and read as if a size mismatch also implied a sha
+  // verdict. Output is unchanged; the reasoning is now separable.
+  let detail = `${buf.length} B`;
+  if (!sizeOk) {
+    detail = `size ${buf.length} != ${e.size}; ` + (shaOk ? '' : 'sha256 mismatch');
+  } else if (!shaOk) {
+    detail = 'sha256 mismatch';
+  }
+  check(`${e.name}`, sizeOk && shaOk, detail);
 }
 
 // ------------------------------- the record and the manifest are one producer
@@ -163,8 +173,10 @@ if (!pin) {
   const remote = spawnSync('git', ['ls-remote', '--tags', 'origin', `refs/tags/${tag}`], { cwd: ROOT, encoding: 'utf8' });
   const hasLocal = (local.stdout || '').trim().length > 0;
   const hasRemote = (remote.stdout || '').trim().length > 0;
-  check(`pin ${pin}: the tag exists locally`, hasLocal || hasRemote,
-        hasLocal ? 'local' : (hasRemote ? 'remote only (run git fetch --tags so the local check is meaningful)' : ''));
+  let where = '';
+  if (hasLocal) where = 'local';
+  else if (hasRemote) where = 'remote only (run git fetch --tags so the local check is meaningful)';
+  check(`pin ${pin}: the tag exists locally`, hasLocal || hasRemote, where);
   check(`pin ${pin}: the tag exists on the remote`, hasRemote, hasRemote ? '' : 'git ls-remote found nothing');
   // and the bundle the entry's upstream_url points at should be on that release
   const gh = spawnSync('gh', ['release', 'view', tag, '--json', 'assets', '--jq', '.assets[].name'],

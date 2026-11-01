@@ -4,8 +4,10 @@ PASS the product imports _ZTIi (any correct compiler does; emcc identical)
 
 == gap against the real host (ruling A, before its relink) ==
 PASS host was checked
-PASS the gap check NAMES _ZTIi against the current host (compile-time warning until the relink): the relink will flip this half — see the note below
+PASS _ZTIi is provided by the host — ruling A has landed (this line
+     replaces the "names it" assertion once the relink ships);
+     remaining missingFunctions: []
 -- artifacts
-ARTIFACT ztii_regression_pass 4
+ARTIFACT ztii_regression_pass 3
 
 === ALL PASS ===

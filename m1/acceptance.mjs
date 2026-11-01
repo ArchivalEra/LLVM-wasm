@@ -10,8 +10,8 @@
 // without a browser.
 //
 // Usage: node m1/acceptance.mjs [--sysroot <dir>]
-import { readFileSync, existsSync, readdirSync, statSync, mkdirSync, writeFileSync } from 'fs';
-import { join, dirname, relative } from 'path';
+import { readFileSync, existsSync, readdirSync, writeFileSync } from 'fs';
+import { join, dirname } from 'path';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
@@ -78,7 +78,11 @@ for (const rel of STAGE) {
   staged += stageTree(FS, host, `/sysroot/${rel}`);
 }
 // the C headers live at the sysroot root
-staged += stageTree(FS, join(SR, 'include'), '/sysroot/include') - staged > 0 ? 0 : 0;
+// Was: `staged += stageTree(...) - staged > 0 ? 0 : 0` -- an operator-precedence
+// accident that evaluated to a constant 0, so the include/ subtree was staged
+// but never counted, and the line below under-reported the header count.
+// `staged` feeds nothing but that log line, so this changes a lie, not a test.
+staged += stageTree(FS, join(SR, 'include'), '/sysroot/include');
 console.log(`staged ${staged} header files into the in-memory FS`);
 
 const argv = [
