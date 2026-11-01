@@ -155,6 +155,27 @@ tail .git/logs/HEAD                  # reflog 一般完好，给出最后一个�
 **唯一重要的判断**：坏的是没推送的那次提交、而工作树与旧对象都在 ⇒ **重做提交**。
 `git reset --hard` 或重新 clone 才是真正会丢东西的动作。
 
+## 发版走 GitHub Action，不手动 `gh release`
+
+```sh
+# 仓库页 → Actions → release → Run workflow
+#   tag:        v0.1.5
+#   source_tag: v0.1.4      ← 承载载荷的来源 bundle
+#   split:      true        ← 同时发 5 MiB 分片形态
+#   publish:    false       ← ★ 先用 false 跑一遍，绿了再 true
+```
+
+**为什么**：三个仓都踩过同一个坑 —— 慢网络下 `gh release create` 超时，留下 **draft**；
+而 draft 对客户端不可见，本地却看着"资产都在"。v0.1.5 还有 105 个分片要分批传。
+
+**CI 的边界，说清楚**：CI **不重建工具链**（`make-release.sh` 要 300 MB emsdk 和数小时
+建出的 clang.wasm/lld.wasm，都不入库）。所以 Action 走
+`release/assemble-from-bundle.sh`：**搬运**上一个已发布 bundle 的 14 个资产，重打 + 换
+tag/pin。**载荷真变了**（重编 clang、换 sysroot）必须在有工具链的机器上跑
+`make-release.sh`，然后手动发 —— 那条路 CI 做不了，Action 会失败而不是发一个旧载荷的新 tag。
+
+`check-wasm64-e2e.sh` 需要本地 M0 产物（不入库），CI 里**明说 SKIP**：少一条验收必须被看见。
+
 ## 两种分发形态，同时存在
 
 一个 tag 下同时挂两套东西，**不是替换关系**：

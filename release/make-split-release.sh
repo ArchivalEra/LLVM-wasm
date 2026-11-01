@@ -105,6 +105,11 @@ if missing:
 print('flat-name check: %d assets, all present at root, none contains a slash' % len(wanted))
 PY
 
+# payload/ 是中间产物（14 个未切的原件，122 MB）。生成器读完就不需要了，
+# 上传前必须清掉 —— 否则 `gh release upload $OUT/*` 会把它们当资产传，
+# 而契约判据 1 只白名单 asset 名（实测漏删过：release/split/ 里多出 payload/）。
+rm -rf "$OUT/payload"
+
 echo ""
 echo "== split release ready at $OUT =="
 echo "上传（与整包 tar.gz 挂在同一个 tag 下，旧形态不删）："

@@ -1,0 +1,202 @@
+name: release
+
+# 手动触发、自动出 release（用户 2026-11-01 的裁定）。
+#
+# 为什么是 Action 而不是本地脚本：
+#   · 本机网络慢，`gh release create` 会超时并留下 draft，得人盯着翻正
+#     （这坑在额外内容仓的 RELEASES.md 里记过，本仓 v0.1.4/v0.1.5 也都踩了）；
+#   · v0.1.5 有 105 个分片 asset，本地分批传要好几轮；
+#   · 发布是**可复现的动作**（tag + 输入确定 ⇒ 字节确定），该由 CI 做而不是
+#     由某个人的终端做。本地能用 `--dry-run` 走同一条路径看结果。
+#
+# ★ 这个 Action 只做「打 + 验 + 发」，不产生任何新的判断：
+#   · 分片用契约仓的工具（Octave-Extra-Content/tools/），不在这里重写；
+#   · 验收判据全在仓里（check-release / check-wasm64-e2e / check-published），
+#     Action 只是按顺序调用它们；任何一步红 ⇒ 不发，而不是"发了再说"。
+#
+# 触发：
+#   Actions → release → Run workflow
+#     tag:           要发的 tag（如 v0.1.5）
+#     split:         是否同时发分片形态（默认 true）
+#     publish:       false = 只跑构建与验收、不创建 release（安全默认，先看绿）
+#
+# 需要 secret: GH_TOKEN（默认 GITHUB_TOKEN 足够，需 contents: write 权限）
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v0.1.5)'
+        required: true
+        type: string
+      source_tag:
+        description: 'Bundle to carry forward (e.g. v0.1.4) — CI cannot rebuild the toolchain'
+        required: true
+        type: string
+      split:
+        description: 'Also publish the split (5 MiB chunk) form'
+        required: false
+        default: true
+        type: boolean
+      publish:
+        description: 'Create the GitHub release (false = build+verify only)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # tag 存在性判据要读 tag
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 分片生成器的依赖。没有它 make-split-release.sh 会 FATAL（不是静默降级）。
+      - name: Install zstandard
+        run: pip install zstandard
+
+      # ★ CI 不重建工具链。`make-release.sh` 需要 300 MB emsdk 与数小时建出的
+      # clang.wasm/lld.wasm，两者都不在库里 —— 在 CI 里跑它只会得到"输入是空的"
+      # 假结果。所以发布动作是**搬运**：从上一个已发布的 bundle 取 14 个资产，
+      # 重打一份 + 换 tag/pin。字节完全相同，只有元数据的 tag 变。
+      #
+      # 边界（明说，不藏）：这条路径只适用于**载荷没变**的发布。真换了载荷
+      # （重编 clang、换 sysroot）必须在有工具链的机器上跑 make-release.sh。
+      - name: Fetch the source bundle
+        run: |
+          gh release download "$SOURCE_TAG" -R "$GITHUB_REPOSITORY" \
+            -p 'llvm-wasm-bundle-*.tar.gz' -D /tmp/src --clobber
+          ls -la /tmp/src
+        env:
+          SOURCE_TAG: ${{ inputs.source_tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Assemble the bundle (carry, not rebuild)
+        run: |
+          SRC=$(ls /tmp/src/llvm-wasm-bundle-*.tar.gz)
+          sh release/assemble-from-bundle.sh "$SRC" "$INPUT_TAG"
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+
+      # ── 两条验收：消费方打开发布件本身 + wasm64 真宿主闭环 ────────────────
+      - name: Consumer acceptance (opens the shipped files)
+        run: node release/check-release.mjs
+
+      - name: wasm64 end-to-end from the bundle
+        # ⚠️ 这一步需要 `m0/build-wasm64/host.js` —— 本地构建的宿主 harness，
+        # **不入库**（.gitignore 排除 m0/*.js）。CI 上没有它，脚本会 FATAL。
+        # 所以这里**明说跳过**，而不是让它红或被静默吞掉：少一条验收是必须
+        # 被看见的事，不是"跑过了"。
+        run: |
+          if [ -f m0/build-wasm64/host.js ]; then
+            bash release/check-wasm64-e2e.sh
+          else
+            echo "SKIP wasm64 e2e: m0/build-wasm64/host.js 不在（本地构建产物，不入库）"
+            echo "     这条验收只能在有本地 M0 构建的机器上跑。"
+          fi
+
+      # ── 分片形态（契约 schema 2）──────────────────────────────────────────
+      - name: Build the split form
+        if: inputs.split
+        run: |
+          git clone --depth 1 https://github.com/ArchivalEra/Octave-Extra-Content /tmp/ec
+          EXTRA_CONTENT=/tmp/ec sh release/make-split-release.sh "$INPUT_TAG" release/split
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+
+      # ★ 自洽性判据：包的 driver 集合必须等于 repo 的，且逐字节相同。
+      # 这一条挡住的是"一致地旧"（v0.1.2 的失效形状，见翻案 R-012）。
+      - name: Bundle is byte-identical to HEAD
+        run: |
+          node release/check-published.mjs \
+            --tar "release/llvm-wasm-bundle-${INPUT_TAG}.tar.gz" --freshness
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+
+      # ── 发布（publish=false 时到此为止，产物留作 artifact 供人下载核对）──
+      - name: Upload build artefacts for inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ inputs.tag }}
+          path: |
+            release/llvm-wasm-bundle-${{ inputs.tag }}.tar.gz
+            release/out/manifest.json
+            release/split/manifest.json
+          retention-days: 14
+
+      - name: Create the release (whole bundle + contract manifest)
+        if: inputs.publish
+        run: |
+          # 整包 + 顶层契约 manifest。注意：顶层的 manifest.json 必须是**契约
+          # 那份**（schema 2，描述发布字节），不是 out/ 里那份构建清单 —— 后者
+          # 已经在 tar 里面了。弄反了 v0.1.5 踩过：先传了 5559 B 的那份。
+          ASSETS="release/llvm-wasm-bundle-${INPUT_TAG}.tar.gz"
+          if [ "$SPLIT" = "true" ]; then
+            ASSETS="$ASSETS release/split/manifest.json"
+          else
+            ASSETS="$ASSETS release/out/manifest.json"
+          fi
+          gh release create "$INPUT_TAG" \
+            --title "$INPUT_TAG" \
+            --notes-file "release/notes-${INPUT_TAG}.md" \
+            $ASSETS
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          SPLIT: ${{ inputs.split }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 105 个分片分批传：一次全传会撞超时（本地实测过）。每组之间不重试，
+      # 失败就让 job 红 —— 半发布比不发布更坏。
+      - name: Upload split assets (zstd)
+        if: inputs.publish && inputs.split
+        run: gh release upload "$INPUT_TAG" release/split/*.zstd.* --clobber
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload split assets (gzip)
+        if: inputs.publish && inputs.split
+        run: gh release upload "$INPUT_TAG" release/split/*.gzip.* --clobber
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload split assets (identity)
+        if: inputs.publish && inputs.split
+        run: gh release upload "$INPUT_TAG" release/split/*.identity.* --clobber
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ★★ 发布后反读 —— 本仓纪律：关于 release 的声明只能由读 release 来核。
+      # 也顺手抓 draft（gh 在慢网络下会留 draft，而 draft 对客户端不可见）。
+      - name: Read the release back from GitHub
+        if: inputs.publish
+        run: |
+          DRAFT=$(gh release view "$INPUT_TAG" -R "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)
+          if [ "$DRAFT" = "true" ]; then
+            echo "FATAL: release 是 draft，客户端取不到"; exit 1
+          fi
+          node release/check-published.mjs --tag "$INPUT_TAG"
+          if [ "$SPLIT" = "true" ]; then
+            mkdir -p /tmp/vfy
+            gh release download "$INPUT_TAG" -R "$GITHUB_REPOSITORY" \
+              -p '*.zstd.*' -p 'manifest.json' -D /tmp/vfy --clobber
+            python3 /tmp/ec/tools/check-release-v4.py /tmp/vfy/manifest.json --base /tmp/vfy | tail -2
+          fi
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          SPLIT: ${{ inputs.split }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
