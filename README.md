@@ -244,6 +244,10 @@ tag/pin。**载荷真变了**（重编 clang、换 sysroot）必须在有工具�
 契约的 `upgrade-manifest-license.py` 已支持 entry 级（`by_name`，键 = `entry.name` 原样）；
 本仓只拥有**数据**（`release/licenses.json`），升级与校验逻辑一行都不在本仓。
 
+**键是 `entry.name` 的原样字面串**（`clang.wasm`、`driver__abi.mjs`）——不做任何归一。
+这条有教训：我在信里论证过「归一规则不该进工具」，转头在自己数据文件里按
+`driver/abi.mjs` 写了一次归一。键抄下那串字面量即可。
+
 映射在 `release/licenses.json`（数据），`release/make-license.py` 施加，并**断言字节身份未变**
 ——只许改 `schema`/`license`/`role`；分片名、字节数、sha256 必须逐字相同，否则拒绝写盘。
 那是「换 manifest 不用重传 asset」这句话的机器判据。
