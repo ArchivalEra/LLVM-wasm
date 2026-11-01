@@ -176,46 +176,41 @@ tag/pin。**载荷真变了**（重编 clang、换 sysroot）必须在有工具�
 
 `check-wasm64-e2e.sh` 需要本地 M0 产物（不入库），CI 里**明说 SKIP**：少一条验收必须被看见。
 
-## 两种分发形态，同时存在
+## 一个 release 只有 manifest 声明的东西
 
-一个 tag 下同时挂两套东西，**不是替换关系**：
+契约（`ArchivalEra/Static-Contract`，v4 §0）一句话：
 
-| 形态 | 是什么 | 谁在读 |
-|---|---|---|
-| `llvm-wasm-bundle-vX.Y.Z.tar.gz` | 整包（34.7 MB），**内含**构建清单 `manifest.json`（schema 1） | 宿主 provision（它硬编码 `$WORK/manifest.json`） |
-| 分片 + 顶层 `manifest.json` | 契约 schema 2：每个载荷切 ≤5 MiB、三编码，**105 个扁平 asset** | 静态分发的客户端 |
+> 一个 release = 一个不可变 tag = 一份 `manifest.json` + N 个扁平 asset
 
-**为什么两份都叫 `manifest.json` 却不冲突**：层级不同。我那份在 tar **里面**，
-契约那份在 release **顶层**；没有任何客户端会在同一层看到两个。
-
-⚠️ 发的时候别传反了：v0.1.5 第一次就把构建清单传到了顶层，靠对比文件大小才发现
-（构建清单几 KB，契约那份二十多 KB）。名字一样，唯一能分辨的是内容。
+**「+ N 个扁平 asset」是封闭集合**：release 里多一个资产就是不合规，哪怕它有用。
+整包 tar.gz 因此不再发布 —— 它的内容已由 identity 分片完整表达：
 
 ```sh
-sh release/make-split-release.sh v0.1.5     # ⇒ release/split/
+# 从分片拼回整包（契约客户端算法第 4/5 步）
+#   逐块 GET → 校验 bytes+sha256 → 解码 → 拼接 → 校验 entry.sha256
+# 14 个载荷全部可重建，且重建后再切分得到逐字节相同的分片
 ```
 
-分片形态把首拉从 34.7 MB 降到 26.68 MB（zstd，−23%），实测依据是 EdgeOne 在
-10–20 MB 之间降速。**客户端注意**：zstd 分片**每块是独立帧**，必须
-**逐块解码再拼接**；把整串当单一多帧流解会在多块载荷上静默出错（单块载荷全绿，
-把问题藏住）。
+**唯一的合规产物**：`manifest.json` + 105 个分片（14 载荷 × 三编码，每块 ≤5 MiB）。
+判据是机器判的，不是我说的 —— workflow 里那条
+`Release contents == manifest contents` 断言盘上文件集**恰好等于** manifest 声明的集合。
 
-## 发版的三个必读陷阱
+## 发版的四个必读陷阱
 
-`release/README.md` 有完整步骤，这里只记**踩过才知道**的三条：
+发版只走 `.github/workflows/release.yml`（手动触发），下面这些仍会咬人：
 
-1. **`--pin` 收裸 tag**：`make-content-list.mjs --pin v0.1.4`（脚本自己加 `release:` 前缀）。
-   传 `release:v0.1.4` 会得到 `release:release:v0.1.4`。
-2. **缺省 pin 是 `git describe`**：直接从工作树出的包 pin 会是 `v0.1.3-7-g2c3bc09` ——
-   指向一个不是 tag 的东西。发布前必须显式传 tag **并重打 tar**（manifest 里没有
-   content-list，所以只重打 tar 就够）。
-3. **`gh release create` 不是原子的**：带资产的那次调用可能只上去一部分
-   （实测两次都落在 draft + 只有 `manifest.json`）。发布后必须
-   `gh release view --json assets` 核数，缺了就 `gh release upload --clobber`。
+1. **release 里只许有 manifest 声明的东西** —— 多挂一个整包 tar.gz 就是不合规。
+   判据由 workflow 断死（`Release contents == manifest contents`），双证过：
+   干净 PASS，塞进 tar 立刻 FAIL。
+2. **顶层 `manifest.json` 是契约那份**（schema 2，描述发布字节），不是构建清单。
+   两个同名、只能靠大小/内容分辨（构建清单几 KB，契约那份二十多 KB）。
+3. **`--pin` 收裸 tag**：`make-content-list.mjs --pin v0.1.5`（脚本自己加 `release:` 前缀）。
+   传 `release:v0.1.5` 会得到 `release:release:v0.1.5`。
+4. **`gh release create` 不是原子的**：可能只上去一部分并落在 draft
+   （draft 对客户端不可见而资产看着都在）。所以发布后必须**反读**：
+   `node release/check-published.mjs --tag vX.Y.Z` + 下载回来逐条核。
 
-这三条的共同形状：**生成器不能自己检查自己**。唯一能发现它们的是反读 ——
-`node release/check-published.mjs --tag vX.Y.Z`（从 GitHub 下载正在服务的字节，
-对账 manifest / content-list / imports / HEAD 四处）。
+共同形状：**生成器不能自己检查自己**。唯一能发现这些的是反读正在服务的字节。
 
 ## 事实系统的分层（同步上游时唯一要懂的一件事）
 

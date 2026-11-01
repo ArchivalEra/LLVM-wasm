@@ -27,11 +27,13 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 
 TAG=${1:?用法: make-split-release.sh <tag> [outdir]}
 OUT=${2:-"$ROOT/release/split"}
-SRC="$ROOT/release/out"
+# 载荷从哪来：默认本机构建产物；CI 上由 workflow 指定（PAYLOAD_SRC=/tmp/recovered）。
+# 不写死成 release/out —— 否则 workflow 得先伪造一个 build 目录，那是假动作。
+SRC=${PAYLOAD_SRC:-"$ROOT/release/out"}
 # 契约工具不 vendor 进本仓（那是另一条产品线，同步方式未定）；没有就明说怎么拿。
 EC=${EXTRA_CONTENT:-/tmp/ec}
 
-[ -f "$SRC/manifest.json" ] || { echo "FATAL: 没有 $SRC/manifest.json —— 先跑 make-release.sh"; exit 2; }
+[ -d "$SRC" ] || { echo "FATAL: 载荷目录 $SRC 不存在"; exit 2; }
 [ -f "$EC/tools/make-manifest-v4.py" ] || {
   echo "FATAL: 契约工具不在 $EC。先："
   echo "  git clone https://github.com/ArchivalEra/Octave-Extra-Content /tmp/ec"
@@ -39,18 +41,29 @@ EC=${EXTRA_CONTENT:-/tmp/ec}
 }
 python3 -c "import zstandard" 2>/dev/null || { echo "FATAL: 需要 zstandard：pip install zstandard"; exit 2; }
 
-# ── 1) 干净载荷目录：只放 out/manifest.json 里列出的资产 ─────────────────────
+# ── 1) 干净载荷目录：只放**清单**里列出的资产 ────────────────────────────────
+# 清单有两个可能的产地，按可用性选：
+#   · `release/out/manifest.json` —— 本机构建产物（`assets[]`），有它就是最权威；
+#   · `release/payloads.json`     —— git 追踪的身份清单（`payloads[]`），CI 上
+#                                   只有这个（out/ 是 122 MB 构建产物，不入库）。
+# 两者的条目形状不同（assets/payloads 键名），所以这里统一读成 [{'name':...}]。
+# 不统一就会变成"本地能跑、CI 报 KeyError"——那种失败要到 Actions 里才发现。
 CLEAN="$OUT/payload"
 rm -rf "$OUT"
 mkdir -p "$CLEAN"
-python3 - "$SRC" "$CLEAN" <<'PY'
+python3 - "$SRC" "$CLEAN" "$ROOT/release/payloads.json" <<'PY'
 import json, os, shutil, sys
-src, dst = sys.argv[1], sys.argv[2]
-man = json.load(open(os.path.join(src, 'manifest.json'), encoding='utf-8'))
-names = [a['name'] for a in man['assets']]
+src, dst, pinned = sys.argv[1], sys.argv[2], sys.argv[3]
+if os.path.exists(os.path.join(src, 'manifest.json')):
+    items = json.load(open(os.path.join(src, 'manifest.json'), encoding='utf-8'))['assets']
+elif os.path.exists(pinned):
+    items = json.load(open(pinned, encoding='utf-8'))['payloads']
+else:
+    sys.exit('FATAL: 既没有 %s/manifest.json 也没有 %s' % (src, pinned))
+names = [a['name'] for a in items]
 missing = [n for n in names if not os.path.exists(os.path.join(src, n))]
 if missing:
-    sys.exit('FATAL: manifest 列了但盘上没有：%s' % ', '.join(missing))
+    sys.exit('FATAL: 清单列了但盘上没有：%s' % ', '.join(missing))
 for n in names:
     p = os.path.join(dst, n)
     d = os.path.dirname(p)

@@ -1,0 +1,81 @@
+{
+ "_why": "载荷身份清单：CI 发布时用它核对取回来的字节。只保留 name/bytes/sha256 —— 发布判据只需要这三样。派生于 release/out/manifest.json（构建产物，不入库），复跑：node release/make-payloads.mjs。",
+ "_derived_from": "release/out/manifest.json",
+ "generated": "2026-11-01T09:23:49+0800",
+ "counts": {
+  "payloads": 14,
+  "total_bytes": 122967501
+ },
+ "payloads": [
+  {
+   "name": "LICENSE",
+   "bytes": 34523,
+   "sha256": "8486a10c4393cee1c25392769ddd3b2d6c242d6ec7928e1414efff7dfb2f07ef"
+  },
+  {
+   "name": "LICENSE-EMSCRIPTEN.txt",
+   "bytes": 5093,
+   "sha256": "620a78084fc7ca97c0b5dea9abf891f3ffcadfdbf305276f099c9c4e12fc1d86"
+  },
+  {
+   "name": "LICENSE-LLVM.txt",
+   "bytes": 15141,
+   "sha256": "8d85c1057d742e597985c7d4e6320b015a9139385cff4cbae06ffc0ebe89afee"
+  },
+  {
+   "name": "clang.js",
+   "bytes": 76240,
+   "sha256": "2871ad1c25ddd163de68c6d0129cb9455f804d1d854f70522bea1ad662bc04af"
+  },
+  {
+   "name": "clang.wasm",
+   "bytes": 48069274,
+   "sha256": "198e84c4baeb3ce4c8d11cbbef75f072ec61db1b527df0ee2c90c9a4ffc72a85"
+  },
+  {
+   "name": "driver/abi.mjs",
+   "bytes": 7781,
+   "sha256": "ef0a61e6be0f9c527b0533efb68ca1fee9abb9a737733dd095a7ff06ffddc5b3"
+  },
+  {
+   "name": "driver/compile-core.mjs",
+   "bytes": 5798,
+   "sha256": "c5f4b87318df8f80bf0270ab4cd94ba115fa7673b76a50dc83df14013c1db9e1"
+  },
+  {
+   "name": "driver/sysroot-bundle.mjs",
+   "bytes": 2621,
+   "sha256": "ad7649a73d9d91c4fbfd89b2ba417c2037595f6500b5e05fbf1f760051843a78"
+  },
+  {
+   "name": "driver/tar-reader.mjs",
+   "bytes": 1782,
+   "sha256": "3e6a7f25fef18c3b78801a773f0603b7ccc1c713e5a90b33c63c6d8a2eb08951"
+  },
+  {
+   "name": "driver/toolchain.mjs",
+   "bytes": 9492,
+   "sha256": "7af8bdd987148155397c74dc3cde49c297bda3c90d140b2ef2a432aef9cfcbb4"
+  },
+  {
+   "name": "lld-wasm-only.js",
+   "bytes": 72686,
+   "sha256": "2813588e461162e231a1e80593228b36fffd517792f2439348e9421f8e5cd2e5"
+  },
+  {
+   "name": "lld-wasm-only.wasm",
+   "bytes": 33358910,
+   "sha256": "8d3b6a2dcca07f07f4a68bf55cc08e744369dffcad27b198e0e79179c0b71879"
+  },
+  {
+   "name": "sysroot-headers.tar",
+   "bytes": 20654080,
+   "sha256": "5b9a8d2cd528f3f6c4d3752b153a4aa4495d2416ccb28655a63b9a268d0efa0e"
+  },
+  {
+   "name": "sysroot-headers.wasm64.tar",
+   "bytes": 20654080,
+   "sha256": "8d82242177651dc4c1108c1aae61a704a9f01c409cfd5b24eb6ba79a1cff0c97"
+  }
+ ]
+}
