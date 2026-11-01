@@ -155,6 +155,23 @@ tail .git/logs/HEAD                  # reflog 一般完好，给出最后一个�
 **唯一重要的判断**：坏的是没推送的那次提交、而工作树与旧对象都在 ⇒ **重做提交**。
 `git reset --hard` 或重新 clone 才是真正会丢东西的动作。
 
+## 发版的三个必读陷阱
+
+`release/README.md` 有完整步骤，这里只记**踩过才知道**的三条：
+
+1. **`--pin` 收裸 tag**：`make-content-list.mjs --pin v0.1.4`（脚本自己加 `release:` 前缀）。
+   传 `release:v0.1.4` 会得到 `release:release:v0.1.4`。
+2. **缺省 pin 是 `git describe`**：直接从工作树出的包 pin 会是 `v0.1.3-7-g2c3bc09` ——
+   指向一个不是 tag 的东西。发布前必须显式传 tag **并重打 tar**（manifest 里没有
+   content-list，所以只重打 tar 就够）。
+3. **`gh release create` 不是原子的**：带资产的那次调用可能只上去一部分
+   （实测两次都落在 draft + 只有 `manifest.json`）。发布后必须
+   `gh release view --json assets` 核数，缺了就 `gh release upload --clobber`。
+
+这三条的共同形状：**生成器不能自己检查自己**。唯一能发现它们的是反读 ——
+`node release/check-published.mjs --tag vX.Y.Z`（从 GitHub 下载正在服务的字节，
+对账 manifest / content-list / imports / HEAD 四处）。
+
 ## 事实系统的分层（同步上游时唯一要懂的一件事）
 
 机制层是上游的，数据层是本仓的，两者在**不同的文件**里：

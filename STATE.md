@@ -24,19 +24,24 @@ M0 的完整记录见 `m0/RESULTS.md`；M1 见 `m1/RESULTS.md`。
   **对齐扫描器**而非 ruff 默认 10）⇒ 全绿，不必等下一次外部扫描才知道有没有反弹。
   **两个遗留**：`.pyc` 曾被误追踪（白名单漏排 `__pycache__`，已修）；
   `m0/host.cc` 的 C 风格转换判定为**不改**（C ABI 必需，见台账）。
-  **⚠️ 由此产生的未完成动作见下一条：v0.1.3 已落后于 HEAD。**
+  **由此产生的发布动作见下一条（已完成）。**
 
-- **⚠️ v0.1.3 已落后于 HEAD（待发 v0.1.4）**：第二批整改动了 `driver/abi.mjs`
+- **✅ v0.1.4 已发布，反读全绿**：第二批整改动了 `driver/abi.mjs`
   与 `driver/toolchain.mjs`（`symbolGap` 拆成 neededFrom/selfExported、清死导入），
-  而这两个文件**在已发布的 v0.1.3 包里**。反读判据当场报红：
-  `node release/check-published.mjs --tar release/llvm-wasm-bundle-v0.1.3.tar.gz --freshness`
-  ⇒ `driver files are byte-identical to the repo: stale (abi.mjs, toolchain.mjs)`
-  —— **这正是该判据存在的理由**（"包内自洽"抓不到"整体落后"，见翻案 R-012）。
-  `release/content-list.json` 保持 v0.1.3 的取值（它描述**已发布**的字节，不是 HEAD）：
-  工作树的 `make-release.sh` 一跑就会把它改成新 sha + 本地 `git describe` pin，
-  那是错的 —— 除非同时真的发布。**注意**：`driver/` 下的**验收器**（`acceptance-*`、
-  `check-*`）不进包，所以对已发布包无害。
-  下次动作：重打 bundle → 发 v0.1.4 → `--tag` 反读 → 本条改成已发布。
+  而这两个文件**在已发布的 v0.1.3 包里** ⇒ 反读判据当场报红：
+  `--tar …v0.1.3.tar.gz --freshness` ⇒ `stale (abi.mjs, toolchain.mjs)`。
+  **这正是该判据存在的理由**（"包内自洽"抓不到"整体落后"，见翻案 R-012）——
+  它把"改了包里有的文件"从"没人知道"变成"提交前后随时可问"。
+  处置 = 重打 bundle + 发 **v0.1.4**，发布后反读：
+  `node release/check-published.mjs --tag v0.1.4` ⇒ [[published_check_pass]] PASS
+  （含 pin 指向本 tag、driver 与 HEAD 逐字节一致、imports 闭合）。
+  消费方验收照旧在同一次里跑过：`check-release.mjs` 27 PASS、
+  `check-wasm64-e2e.sh` 12 PASS。
+  **踩到的一处**：`make-content-list.mjs --pin` 收**裸 tag**（脚本自己加
+  `release:` 前缀），传 `release:v0.1.4` 会得到 `release:release:v0.1.4`；
+  且 `make-release.sh` 缺省用 `git describe` 作 pin ⇒ 工作树出的包 pin 是
+  `v0.1.3-7-g…`。发布前必须显式 `--pin v0.1.4` 重生成再打 tar。
+  `release/content-list.json`（git 追踪）现在描述 v0.1.4 的字节。
 
 - **v0.1.3 已发布**（宿主 `044`/本仓 `013` 抓出 v0.1.2 缺 `compile-core.mjs` 后的重发）：
   修复提交晚于发布 8 分钟、而检查器只读工作树 ⇒ 已发布包整体落后但**内部自洽**（13/13/13，
@@ -290,88 +295,88 @@ M0 的完整记录见 `m0/RESULTS.md`；M1 见 `m1/RESULTS.md`。
 
 | 键 | 值 | 测于 | 复跑命令 |
 |---|---|---|---|
-| `anchor_clang_wasm` | **51580817** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT anchor_clang_wasm ' m1/evidence/opt-anchor.log | cut -d' ' -f3` |
-| `anchor_clang_wasm_brotli` | **13301149** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT anchor_clang_wasm_brotli ' m1/evidence/opt-anchor.log | cut -d' ' -f3` |
-| `browser_acceptance_pass` | **14** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT browser_acceptance_pass ' browser/evidence/browser.log | cut -d' ' -f3` |
-| `browser_host_wasm` | **1413116** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT browser_host_wasm ' browser/evidence/loop.log | cut -d' ' -f3` |
-| `browser_module_basic_bytes` | **976** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT browser_module_basic_bytes ' browser/evidence/browser.log | cut -d' ' -f3` |
-| `browser_module_eh_bytes` | **2117** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT browser_module_eh_bytes ' browser/evidence/browser.log | cut -d' ' -f3` |
-| `clang_major` | **24** | 2026-11-01T09:23:00+0800 | `toolchain/emsdk/upstream/bin/clang --version 2>/dev/null | head -1 | grep -oE 'clang version [0-9]+' | head -1 | grep -oE '[0-9]+$'` |
-| `compile_seam_check_pass` | **18** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT compile_seam_check_pass ' driver/evidence/check-compile-seam.log | cut -d' ' -f3` |
-| `content_list_check_pass` | **31** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT content_list_check_pass ' release/evidence/check-content-list.log | cut -d' ' -f3` |
-| `content_list_entries` | **14** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT content_list_entries ' release/evidence/make-release.log | cut -d' ' -f3` |
-| `driver_acceptance_pass` | **17** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT driver_acceptance_pass ' driver/evidence/driver-acceptance.log | cut -d' ' -f3` |
-| `driver_module_bytes` | **976** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT driver_module_bytes ' driver/evidence/driver-acceptance.log | cut -d' ' -f3` |
-| `emcc_from_repo_toolchain` | **yes** | 2026-11-01T09:23:00+0800 | `test -x toolchain/emsdk/upstream/emscripten/emcc && echo yes` |
-| `emcc_version` | **6.0.12** | 2026-11-01T09:23:00+0800 | `toolchain/emsdk/upstream/emscripten/emcc --version 2>/dev/null | head -1 | grep -oE '[0-9]+[.][0-9]+[.][0-9]+' | head -1` |
-| `fail_closed_pass` | **6** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT fail_closed_pass ' driver/evidence/fail-closed.log | cut -d' ' -f3` |
-| `firstload_brotli` | **14308104** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT firstload_brotli ' m1/evidence/opt-firstload.log | cut -d' ' -f3` |
-| `firstload_clang_wasm_brotli` | **12614129** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT firstload_clang_wasm_brotli ' m1/evidence/opt-firstload.log | cut -d' ' -f3` |
-| `firstload_plus_lld_brotli` | **22803407** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT firstload_plus_lld_brotli ' m1/evidence/opt-firstload.log | cut -d' ' -f3` |
-| `firstload_sysroot_tar_brotli` | **1675293** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT firstload_sysroot_tar_brotli ' m1/evidence/opt-firstload.log | cut -d' ' -f3` |
-| `gap_reverse_pass` | **5** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT gap_reverse_pass ' driver/evidence/gap-reverse.log | cut -d' ' -f3` |
-| `gates_total` | **15** | 2026-11-01T09:23:00+0800 | `python3 zreflect/registry.py --all-runnable 2>/dev/null | wc -l` |
-| `lean_nosjlj_acceptance_pass` | **10** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT lean_nosjlj_acceptance_pass ' m1/evidence/opt-lean_nosjlj-acceptance.log | cut -d' ' -f3` |
-| `lean_nosjlj_clang_wasm` | **48069274** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT lean_nosjlj_clang_wasm ' m1/evidence/opt-lean_nosjlj.log | cut -d' ' -f3` |
-| `lean_nosjlj_clang_wasm_brotli` | **12614129** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT lean_nosjlj_clang_wasm_brotli ' m1/evidence/opt-lean_nosjlj.log | cut -d' ' -f3` |
-| `lean_nosjlj_clang_wasm_gzip` | **17317077** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT lean_nosjlj_clang_wasm_gzip ' m1/evidence/opt-lean_nosjlj.log | cut -d' ' -f3` |
-| `lld_major` | **24** | 2026-11-01T09:23:00+0800 | `toolchain/emsdk/upstream/bin/wasm-ld --version 2>/dev/null | head -1 | grep -oE 'LLD [0-9]+' | head -1 | grep -oE '[0-9]+$'` |
-| `lld_wasmonly_brotli` | **8495303** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT lld_wasmonly_brotli ' m1/evidence/opt-lld-wasm-only.log | cut -d' ' -f3` |
-| `lld_wasmonly_raw` | **33358910** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT lld_wasmonly_raw ' m1/evidence/opt-lld-wasm-only.log | cut -d' ' -f3` |
-| `loop_acceptance_pass` | **13** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT loop_acceptance_pass ' browser/evidence/loop.log | cut -d' ' -f3` |
-| `loop_sidemodule_bytes` | **19602** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT loop_sidemodule_bytes ' browser/evidence/loop.log | cut -d' ' -f3` |
-| `m0_counterexample_ok` | **2** | 2026-11-01T09:22:59+0800 | `grep -c '^OK' m0/evidence/counterexamples.log` |
-| `m0_keep_list_symbols` | **50** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT keep_list_symbols ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3` |
-| `m0_mm2_bare_exports` | **30** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT mm2_bare_exports ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3` |
-| `m0_mm2_bare_tags` | **0** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT mm2_bare_tags ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3` |
-| `m0_mm2_keeplist_bytes` | **163130** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT mm2_keeplist_bytes ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3` |
-| `m0_mm2_keeplist_exports` | **76** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT mm2_keeplist_exports ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3` |
-| `m0_mm2_tagonly_exports` | **32** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT mm2_tagonly_exports ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3` |
-| `m0_pass_wasm32` | **12** | 2026-11-01T09:22:59+0800 | `grep -c '^PASS' m0/evidence/m0-wasm32.log` |
-| `m0_pass_wasm64` | **12** | 2026-11-01T09:22:59+0800 | `grep -c '^PASS' m0/evidence/m0-wasm64.log` |
-| `m0_runner_scripts` | **3** | 2026-11-01T09:22:59+0800 | `find m0 -maxdepth 1 -name 'run-*.sh' | wc -l` |
-| `m0_wasm32_host_bytes` | **1413116** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT wasm32_host_bytes ' m0/evidence/m0-wasm32.log | cut -d' ' -f3` |
-| `m0_wasm32_host_exports` | **5790** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT wasm32_host_exports ' m0/evidence/m0-wasm32.log | cut -d' ' -f3` |
-| `m0_wasm32_side_bytes` | **19653** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT wasm32_side_bytes ' m0/evidence/m0-wasm32.log | cut -d' ' -f3` |
-| `m0_wasm32_side_exports` | **9** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT wasm32_side_exports ' m0/evidence/m0-wasm32.log | cut -d' ' -f3` |
-| `m0_wasm64_host_bytes` | **1448809** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT wasm64_host_bytes ' m0/evidence/m0-wasm64.log | cut -d' ' -f3` |
-| `m0_wasm64_host_exports` | **5796** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT wasm64_host_exports ' m0/evidence/m0-wasm64.log | cut -d' ' -f3` |
-| `m0_wasm64_side_bytes` | **20041** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT wasm64_side_bytes ' m0/evidence/m0-wasm64.log | cut -d' ' -f3` |
-| `m0_wasm64_side_exports` | **9** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT wasm64_side_exports ' m0/evidence/m0-wasm64.log | cut -d' ' -f3` |
-| `m1_acceptance_pass` | **10** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT m1_acceptance_pass ' m1/evidence/m1-acceptance.log | cut -d' ' -f3` |
-| `m1_clang_js` | **75866** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT clang_js ' m1/evidence/build-clang.log | cut -d' ' -f3` |
-| `m1_clang_wasm` | **71055261** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT clang_wasm ' m1/evidence/build-clang.log | cut -d' ' -f3` |
-| `m1_clang_wasm_brotli` | **16400451** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT clang_wasm_brotli ' m1/evidence/build-clang.log | cut -d' ' -f3` |
-| `m1_clang_wasm_gzip` | **23299801** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT clang_wasm_gzip ' m1/evidence/build-clang.log | cut -d' ' -f3` |
-| `m1_lld_wasm` | **38912004** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT lld_wasm ' m1/evidence/build-lld.log | cut -d' ' -f3` |
-| `m1_lld_wasm_brotli` | **9660186** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT lld_wasm_brotli ' m1/evidence/build-lld.log | cut -d' ' -f3` |
-| `m1_lld_wasm_gzip` | **13601263** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT lld_wasm_gzip ' m1/evidence/build-lld.log | cut -d' ' -f3` |
-| `m1_sidemodule_bytes` | **976** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT m1_sidemodule_bytes ' m1/evidence/m1-acceptance.log | cut -d' ' -f3` |
-| `md_files` | **52** | 2026-11-01T09:22:59+0800 | `find . -name '*.md' -not -path './.git/*' -not -path './toolchain/*' | wc -l` |
-| `md_lines` | **7149** | 2026-11-01T09:22:59+0800 | `find . -name '*.md' -not -path './.git/*' -not -path './toolchain/*' -exec awk 'FNR==1{b=0} /<!-- AUTO:FACTS -->/{b=1} !b' {} + | wc -l` |
-| `measure_module_lines` | **624** | 2026-11-01T09:23:00+0800 | `wc -l < zreflect/measure_llvm_wasm.py` |
-| `oct_tag_importers` | **4084** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT oct_tag_importers ' m0/evidence/oct-eh-census.txt | cut -d' ' -f3` |
-| `oct_throw_importers` | **7402** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT oct_throw_importers ' m0/evidence/oct-eh-census.txt | cut -d' ' -f3` |
-| `oct_total` | **11663** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT oct_total ' m0/evidence/oct-eh-census.txt | cut -d' ' -f3` |
-| `published_check_pass` | **21** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT published_check_pass ' release/evidence/check-published.log | cut -d' ' -f3` |
-| `py_files` | **30** | 2026-11-01T09:22:59+0800 | `find . -name '*.py' -not -path './.git/*' -not -path './toolchain/*' | wc -l` |
-| `py_lines` | **7422** | 2026-11-01T09:22:59+0800 | `find . -name '*.py' -not -path './.git/*' -not -path './toolchain/*' -exec cat {} + | wc -l` |
-| `release_acceptance_pass` | **27** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT release_acceptance_pass ' release/evidence/check-release.log | cut -d' ' -f3` |
-| `release_assets` | **14** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT release_assets ' release/evidence/check-release.log | cut -d' ' -f3` |
-| `release_first_load_brotli` | **14371044** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT release_first_load_brotli ' release/evidence/check-release.log | cut -d' ' -f3` |
-| `release_total_brotli` | **22866347** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT release_total_brotli ' release/evidence/check-release.log | cut -d' ' -f3` |
-| `retractions_count` | **15** | 2026-11-01T09:23:00+0800 | `python3 -c "import json;print(len(json.load(open('retractions.json'))['retractions']))"` |
-| `sysroot_wasm32_headers` | **1577** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT sysroot_wasm32_headers ' package/evidence/package-wasm32.log | cut -d' ' -f3` |
-| `sysroot_wasm32_tar` | **20654080** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT sysroot_wasm32_tar ' package/evidence/package-wasm32.log | cut -d' ' -f3` |
-| `sysroot_wasm32_tar_brotli` | **1680675** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT sysroot_wasm32_tar_brotli ' package/evidence/package-wasm32.log | cut -d' ' -f3` |
-| `sysroot_wasm32_tar_sha256` | `5b9a8d2cd528f3f6…` | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT sysroot_wasm32_tar_sha256 ' package/evidence/package-wasm32.log | cut -d' ' -f3` |
-| `sysroot_wasm64_tar` | **20654080** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT sysroot_wasm64_tar ' package/evidence/package-wasm64.log | cut -d' ' -f3` |
-| `wasm32_module_bytes` | **976** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT wasm32_module_bytes ' driver/evidence/wasm64-acceptance.log | cut -d' ' -f3` |
-| `wasm64_acceptance_pass` | **10** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT wasm64_acceptance_pass ' driver/evidence/wasm64-acceptance.log | cut -d' ' -f3` |
-| `wasm64_module_bytes` | **994** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT wasm64_module_bytes ' driver/evidence/wasm64-acceptance.log | cut -d' ' -f3` |
-| `wasm64_release_e2e_bytes` | **20041** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT wasm64_release_e2e_bytes ' release/evidence/wasm64-e2e.log | cut -d' ' -f3` |
-| `wasm64_release_e2e_pass` | **12** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT wasm64_release_e2e_pass ' release/evidence/wasm64-e2e.log | cut -d' ' -f3` |
-| `ztii_regression_pass` | **3** | 2026-11-01T09:22:59+0800 | `grep -m1 '^ARTIFACT ztii_regression_pass ' driver/evidence/check-ztii-regression.log | cut -d' ' -f3` |
+| `anchor_clang_wasm` | **51580817** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT anchor_clang_wasm ' m1/evidence/opt-anchor.log | cut -d' ' -f3` |
+| `anchor_clang_wasm_brotli` | **13301149** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT anchor_clang_wasm_brotli ' m1/evidence/opt-anchor.log | cut -d' ' -f3` |
+| `browser_acceptance_pass` | **14** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT browser_acceptance_pass ' browser/evidence/browser.log | cut -d' ' -f3` |
+| `browser_host_wasm` | **1413116** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT browser_host_wasm ' browser/evidence/loop.log | cut -d' ' -f3` |
+| `browser_module_basic_bytes` | **976** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT browser_module_basic_bytes ' browser/evidence/browser.log | cut -d' ' -f3` |
+| `browser_module_eh_bytes` | **2117** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT browser_module_eh_bytes ' browser/evidence/browser.log | cut -d' ' -f3` |
+| `clang_major` | **24** | 2026-11-01T09:38:06+0800 | `toolchain/emsdk/upstream/bin/clang --version 2>/dev/null | head -1 | grep -oE 'clang version [0-9]+' | head -1 | grep -oE '[0-9]+$'` |
+| `compile_seam_check_pass` | **18** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT compile_seam_check_pass ' driver/evidence/check-compile-seam.log | cut -d' ' -f3` |
+| `content_list_check_pass` | **31** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT content_list_check_pass ' release/evidence/check-content-list.log | cut -d' ' -f3` |
+| `content_list_entries` | **14** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT content_list_entries ' release/evidence/make-release.log | cut -d' ' -f3` |
+| `driver_acceptance_pass` | **17** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT driver_acceptance_pass ' driver/evidence/driver-acceptance.log | cut -d' ' -f3` |
+| `driver_module_bytes` | **976** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT driver_module_bytes ' driver/evidence/driver-acceptance.log | cut -d' ' -f3` |
+| `emcc_from_repo_toolchain` | **yes** | 2026-11-01T09:38:06+0800 | `test -x toolchain/emsdk/upstream/emscripten/emcc && echo yes` |
+| `emcc_version` | **6.0.12** | 2026-11-01T09:38:06+0800 | `toolchain/emsdk/upstream/emscripten/emcc --version 2>/dev/null | head -1 | grep -oE '[0-9]+[.][0-9]+[.][0-9]+' | head -1` |
+| `fail_closed_pass` | **6** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT fail_closed_pass ' driver/evidence/fail-closed.log | cut -d' ' -f3` |
+| `firstload_brotli` | **14308104** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT firstload_brotli ' m1/evidence/opt-firstload.log | cut -d' ' -f3` |
+| `firstload_clang_wasm_brotli` | **12614129** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT firstload_clang_wasm_brotli ' m1/evidence/opt-firstload.log | cut -d' ' -f3` |
+| `firstload_plus_lld_brotli` | **22803407** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT firstload_plus_lld_brotli ' m1/evidence/opt-firstload.log | cut -d' ' -f3` |
+| `firstload_sysroot_tar_brotli` | **1675293** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT firstload_sysroot_tar_brotli ' m1/evidence/opt-firstload.log | cut -d' ' -f3` |
+| `gap_reverse_pass` | **5** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT gap_reverse_pass ' driver/evidence/gap-reverse.log | cut -d' ' -f3` |
+| `gates_total` | **15** | 2026-11-01T09:38:06+0800 | `python3 zreflect/registry.py --all-runnable 2>/dev/null | wc -l` |
+| `lean_nosjlj_acceptance_pass` | **10** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT lean_nosjlj_acceptance_pass ' m1/evidence/opt-lean_nosjlj-acceptance.log | cut -d' ' -f3` |
+| `lean_nosjlj_clang_wasm` | **48069274** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT lean_nosjlj_clang_wasm ' m1/evidence/opt-lean_nosjlj.log | cut -d' ' -f3` |
+| `lean_nosjlj_clang_wasm_brotli` | **12614129** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT lean_nosjlj_clang_wasm_brotli ' m1/evidence/opt-lean_nosjlj.log | cut -d' ' -f3` |
+| `lean_nosjlj_clang_wasm_gzip` | **17317077** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT lean_nosjlj_clang_wasm_gzip ' m1/evidence/opt-lean_nosjlj.log | cut -d' ' -f3` |
+| `lld_major` | **24** | 2026-11-01T09:38:06+0800 | `toolchain/emsdk/upstream/bin/wasm-ld --version 2>/dev/null | head -1 | grep -oE 'LLD [0-9]+' | head -1 | grep -oE '[0-9]+$'` |
+| `lld_wasmonly_brotli` | **8495303** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT lld_wasmonly_brotli ' m1/evidence/opt-lld-wasm-only.log | cut -d' ' -f3` |
+| `lld_wasmonly_raw` | **33358910** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT lld_wasmonly_raw ' m1/evidence/opt-lld-wasm-only.log | cut -d' ' -f3` |
+| `loop_acceptance_pass` | **13** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT loop_acceptance_pass ' browser/evidence/loop.log | cut -d' ' -f3` |
+| `loop_sidemodule_bytes` | **19602** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT loop_sidemodule_bytes ' browser/evidence/loop.log | cut -d' ' -f3` |
+| `m0_counterexample_ok` | **2** | 2026-11-01T09:38:06+0800 | `grep -c '^OK' m0/evidence/counterexamples.log` |
+| `m0_keep_list_symbols` | **50** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT keep_list_symbols ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3` |
+| `m0_mm2_bare_exports` | **30** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT mm2_bare_exports ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3` |
+| `m0_mm2_bare_tags` | **0** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT mm2_bare_tags ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3` |
+| `m0_mm2_keeplist_bytes` | **163130** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT mm2_keeplist_bytes ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3` |
+| `m0_mm2_keeplist_exports` | **76** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT mm2_keeplist_exports ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3` |
+| `m0_mm2_tagonly_exports` | **32** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT mm2_tagonly_exports ' m0/evidence/mm2-keeplist.log | cut -d' ' -f3` |
+| `m0_pass_wasm32` | **12** | 2026-11-01T09:38:06+0800 | `grep -c '^PASS' m0/evidence/m0-wasm32.log` |
+| `m0_pass_wasm64` | **12** | 2026-11-01T09:38:06+0800 | `grep -c '^PASS' m0/evidence/m0-wasm64.log` |
+| `m0_runner_scripts` | **3** | 2026-11-01T09:38:06+0800 | `find m0 -maxdepth 1 -name 'run-*.sh' | wc -l` |
+| `m0_wasm32_host_bytes` | **1413116** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT wasm32_host_bytes ' m0/evidence/m0-wasm32.log | cut -d' ' -f3` |
+| `m0_wasm32_host_exports` | **5790** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT wasm32_host_exports ' m0/evidence/m0-wasm32.log | cut -d' ' -f3` |
+| `m0_wasm32_side_bytes` | **19653** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT wasm32_side_bytes ' m0/evidence/m0-wasm32.log | cut -d' ' -f3` |
+| `m0_wasm32_side_exports` | **9** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT wasm32_side_exports ' m0/evidence/m0-wasm32.log | cut -d' ' -f3` |
+| `m0_wasm64_host_bytes` | **1448809** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT wasm64_host_bytes ' m0/evidence/m0-wasm64.log | cut -d' ' -f3` |
+| `m0_wasm64_host_exports` | **5796** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT wasm64_host_exports ' m0/evidence/m0-wasm64.log | cut -d' ' -f3` |
+| `m0_wasm64_side_bytes` | **20041** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT wasm64_side_bytes ' m0/evidence/m0-wasm64.log | cut -d' ' -f3` |
+| `m0_wasm64_side_exports` | **9** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT wasm64_side_exports ' m0/evidence/m0-wasm64.log | cut -d' ' -f3` |
+| `m1_acceptance_pass` | **10** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT m1_acceptance_pass ' m1/evidence/m1-acceptance.log | cut -d' ' -f3` |
+| `m1_clang_js` | **75866** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT clang_js ' m1/evidence/build-clang.log | cut -d' ' -f3` |
+| `m1_clang_wasm` | **71055261** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT clang_wasm ' m1/evidence/build-clang.log | cut -d' ' -f3` |
+| `m1_clang_wasm_brotli` | **16400451** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT clang_wasm_brotli ' m1/evidence/build-clang.log | cut -d' ' -f3` |
+| `m1_clang_wasm_gzip` | **23299801** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT clang_wasm_gzip ' m1/evidence/build-clang.log | cut -d' ' -f3` |
+| `m1_lld_wasm` | **38912004** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT lld_wasm ' m1/evidence/build-lld.log | cut -d' ' -f3` |
+| `m1_lld_wasm_brotli` | **9660186** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT lld_wasm_brotli ' m1/evidence/build-lld.log | cut -d' ' -f3` |
+| `m1_lld_wasm_gzip` | **13601263** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT lld_wasm_gzip ' m1/evidence/build-lld.log | cut -d' ' -f3` |
+| `m1_sidemodule_bytes` | **976** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT m1_sidemodule_bytes ' m1/evidence/m1-acceptance.log | cut -d' ' -f3` |
+| `md_files` | **52** | 2026-11-01T09:38:06+0800 | `find . -name '*.md' -not -path './.git/*' -not -path './toolchain/*' | wc -l` |
+| `md_lines` | **7171** | 2026-11-01T09:38:06+0800 | `find . -name '*.md' -not -path './.git/*' -not -path './toolchain/*' -exec awk 'FNR==1{b=0} /<!-- AUTO:FACTS -->/{b=1} !b' {} + | wc -l` |
+| `measure_module_lines` | **624** | 2026-11-01T09:38:06+0800 | `wc -l < zreflect/measure_llvm_wasm.py` |
+| `oct_tag_importers` | **4084** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT oct_tag_importers ' m0/evidence/oct-eh-census.txt | cut -d' ' -f3` |
+| `oct_throw_importers` | **7402** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT oct_throw_importers ' m0/evidence/oct-eh-census.txt | cut -d' ' -f3` |
+| `oct_total` | **11663** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT oct_total ' m0/evidence/oct-eh-census.txt | cut -d' ' -f3` |
+| `published_check_pass` | **21** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT published_check_pass ' release/evidence/check-published.log | cut -d' ' -f3` |
+| `py_files` | **30** | 2026-11-01T09:38:06+0800 | `find . -name '*.py' -not -path './.git/*' -not -path './toolchain/*' | wc -l` |
+| `py_lines` | **7422** | 2026-11-01T09:38:06+0800 | `find . -name '*.py' -not -path './.git/*' -not -path './toolchain/*' -exec cat {} + | wc -l` |
+| `release_acceptance_pass` | **27** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT release_acceptance_pass ' release/evidence/check-release.log | cut -d' ' -f3` |
+| `release_assets` | **14** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT release_assets ' release/evidence/check-release.log | cut -d' ' -f3` |
+| `release_first_load_brotli` | **14371044** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT release_first_load_brotli ' release/evidence/check-release.log | cut -d' ' -f3` |
+| `release_total_brotli` | **22866347** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT release_total_brotli ' release/evidence/check-release.log | cut -d' ' -f3` |
+| `retractions_count` | **15** | 2026-11-01T09:38:06+0800 | `python3 -c "import json;print(len(json.load(open('retractions.json'))['retractions']))"` |
+| `sysroot_wasm32_headers` | **1577** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT sysroot_wasm32_headers ' package/evidence/package-wasm32.log | cut -d' ' -f3` |
+| `sysroot_wasm32_tar` | **20654080** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT sysroot_wasm32_tar ' package/evidence/package-wasm32.log | cut -d' ' -f3` |
+| `sysroot_wasm32_tar_brotli` | **1680675** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT sysroot_wasm32_tar_brotli ' package/evidence/package-wasm32.log | cut -d' ' -f3` |
+| `sysroot_wasm32_tar_sha256` | `5b9a8d2cd528f3f6…` | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT sysroot_wasm32_tar_sha256 ' package/evidence/package-wasm32.log | cut -d' ' -f3` |
+| `sysroot_wasm64_tar` | **20654080** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT sysroot_wasm64_tar ' package/evidence/package-wasm64.log | cut -d' ' -f3` |
+| `wasm32_module_bytes` | **976** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT wasm32_module_bytes ' driver/evidence/wasm64-acceptance.log | cut -d' ' -f3` |
+| `wasm64_acceptance_pass` | **10** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT wasm64_acceptance_pass ' driver/evidence/wasm64-acceptance.log | cut -d' ' -f3` |
+| `wasm64_module_bytes` | **994** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT wasm64_module_bytes ' driver/evidence/wasm64-acceptance.log | cut -d' ' -f3` |
+| `wasm64_release_e2e_bytes` | **20041** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT wasm64_release_e2e_bytes ' release/evidence/wasm64-e2e.log | cut -d' ' -f3` |
+| `wasm64_release_e2e_pass` | **12** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT wasm64_release_e2e_pass ' release/evidence/wasm64-e2e.log | cut -d' ' -f3` |
+| `ztii_regression_pass` | **3** | 2026-11-01T09:38:06+0800 | `grep -m1 '^ARTIFACT ztii_regression_pass ' driver/evidence/check-ztii-regression.log | cut -d' ' -f3` |
 
 82 条事实。
 <!-- /AUTO:FACTS -->
