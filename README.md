@@ -226,6 +226,8 @@ tag/pin。**载荷真变了**（重编 clang、换 sysroot）必须在有工具�
 | `sysroot-headers*.tar` | `(Apache-2.0 WITH LLVM-exception) AND (MIT OR NCSA)` | 一个 tar 里两种：libc++ 头是 LLVM 派生，emscripten 的 compat 头是 MIT/NCSA |
 | `driver/*.mjs` / `LICENSE` | `AGPL-3.0-or-later` | 本仓自己的代码 |
 
+契约 v1.1 当前**只查形状不查语义**（合法 SPDX + https url），所以上面这张表的值是我逐条核产物、而不是抄建议得来的。
+
 映射在 `release/licenses.json`（数据），`release/make-license.py` 施加，并**断言字节身份未变**
 ——只许改 `schema`/`license`/`role`；分片名、字节数、sha256 必须逐字相同，否则拒绝写盘。
 那是「换 manifest 不用重传 asset」这句话的机器判据。
