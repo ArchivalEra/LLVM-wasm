@@ -1,84 +1,96 @@
 {
-  "_why": "每个载荷的许可（v1.1 schema 3 用）。逐条核过，不是一条表达式盖全体 —— 这个 release 里同时有 LLVM 本体（Apache-2.0 WITH LLVM-exception）、emscripten 胶水与 sysroot（MIT OR NCSA）、本仓驱动与仓许可（AGPL-3.0-or-later）。少写任何一条都是少给下游义务。",
-  "_how": "被 release/make-license.py 读；它也负责把这份映射施加到 manifest 上，并把 entry 标 role。改许可改这里，不要改 CI 里的内联脚本。",
-  "release": {
-    "expr": "(Apache-2.0 WITH LLVM-exception) AND (MIT OR NCSA) AND AGPL-3.0-or-later",
-    "why": "三种许可并存且互不替代（LLVM 派生的 wasm、emscripten 的胶水、本仓的驱动）。顶层写 AND 表示「三份义务都要满足」；具体哪条适用哪个载荷看 entry 级。"
+ "_why": "每个载荷的许可（v1.1 schema 3 用）。逐条核过，不是一条表达式盖全体 —— 这个 release 里同时有 LLVM 本体（Apache-2.0 WITH LLVM-exception）、emscripten 胶水与 sysroot（MIT OR NCSA）、本仓驱动与仓许可（AGPL-3.0-or-later）。少写任何一条都是少给下游义务。",
+ "_how": "被 release/make-license.py 读；它也负责把这份映射施加到 manifest 上，并把 entry 标 role。改许可改这里，不要改 CI 里的内联脚本。",
+ "release": {
+  "expr": "(Apache-2.0 WITH LLVM-exception) AND (MIT OR NCSA) AND AGPL-3.0-or-later",
+  "why": "三种许可并存且互不替代（LLVM 派生的 wasm、emscripten 的胶水、本仓的驱动）。顶层写 AND 表示「三份义务都要满足」；具体哪条适用哪个载荷看 entry 级。"
+ },
+ "by_name": {
+  "clang.wasm": {
+   "id": "Apache-2.0 WITH LLVM-exception",
+   "url": "https://llvm.org/LICENSE.txt",
+   "role": "payload"
   },
-  "by_name": {
-    "clang.wasm": {
-      "id": "Apache-2.0 WITH LLVM-exception",
-      "url": "https://llvm.org/LICENSE.txt",
-      "role": "payload"
-    },
-    "lld-wasm-only.wasm": {
-      "id": "Apache-2.0 WITH LLVM-exception",
-      "url": "https://llvm.org/LICENSE.txt",
-      "role": "payload"
-    },
-    "LICENSE-LLVM.txt": {
-      "id": "Apache-2.0 WITH LLVM-exception",
-      "url": "https://llvm.org/LICENSE.txt",
-      "role": "license",
-      "note": "实测：前 3 行题头 + Apache-2.0 正文 + 'LLVM Exceptions to the Apache 2.0 License' 段 ⇒ 合体，不是单纯 Apache-2.0（标成纯 Apache-2.0 会丢掉例外条款）。"
-    },
-    "clang.js": {
-      "id": "MIT OR NCSA",
-      "url": "https://github.com/emscripten-core/emscripten/blob/main/LICENSE",
-      "role": "payload",
-      "note": "emscripten 胶水。实测 LICENSE-EMSCRIPTEN.txt 首段：'available under 2 licenses, the MIT license and the University of Illinois/NCSA Open Source License' ⇒ MIT OR NCSA，不是 BSD-3-Clause。"
-    },
-    "lld-wasm-only.js": {
-      "id": "MIT OR NCSA",
-      "url": "https://github.com/emscripten-core/emscripten/blob/main/LICENSE",
-      "role": "payload"
-    },
-    "LICENSE-EMSCRIPTEN.txt": {
-      "id": "MIT OR NCSA",
-      "url": "https://github.com/emscripten-core/emscripten/blob/main/LICENSE",
-      "role": "license"
-    },
-    "sysroot-headers.tar": {
-      "id": "(Apache-2.0 WITH LLVM-exception) AND (MIT OR NCSA)",
-      "url": "https://github.com/emscripten-core/emscripten/blob/main/LICENSE",
-      "role": "payload",
-      "note": "混合：libc++/libc 头是 LLVM 派生（Apache-2.0 WITH LLVM-exception），emscripten 的 compat/ 头是 MIT OR NCSA。一个 tar 里两种，所以用 AND。"
-    },
-    "sysroot-headers.wasm64.tar": {
-      "id": "(Apache-2.0 WITH LLVM-exception) AND (MIT OR NCSA)",
-      "url": "https://github.com/emscripten-core/emscripten/blob/main/LICENSE",
-      "role": "payload",
-      "note": "与 wasm32 那份同构（include/ 是架构共享的）。"
-    },
-    "driver/abi.mjs": {
-      "id": "AGPL-3.0-or-later",
-      "url": "https://github.com/ArchivalEra/LLVM-wasm/blob/main/LICENSE",
-      "role": "payload"
-    },
-    "driver/compile-core.mjs": {
-      "id": "AGPL-3.0-or-later",
-      "url": "https://github.com/ArchivalEra/LLVM-wasm/blob/main/LICENSE",
-      "role": "payload"
-    },
-    "driver/sysroot-bundle.mjs": {
-      "id": "AGPL-3.0-or-later",
-      "url": "https://github.com/ArchivalEra/LLVM-wasm/blob/main/LICENSE",
-      "role": "payload"
-    },
-    "driver/tar-reader.mjs": {
-      "id": "AGPL-3.0-or-later",
-      "url": "https://github.com/ArchivalEra/LLVM-wasm/blob/main/LICENSE",
-      "role": "payload"
-    },
-    "driver/toolchain.mjs": {
-      "id": "AGPL-3.0-or-later",
-      "url": "https://github.com/ArchivalEra/LLVM-wasm/blob/main/LICENSE",
-      "role": "payload"
-    },
-    "LICENSE": {
-      "id": "AGPL-3.0-or-later",
-      "url": "https://github.com/ArchivalEra/LLVM-wasm/blob/main/LICENSE",
-      "role": "license"
-    }
+  "lld-wasm-only.wasm": {
+   "id": "Apache-2.0 WITH LLVM-exception",
+   "url": "https://llvm.org/LICENSE.txt",
+   "role": "payload"
+  },
+  "LICENSE-LLVM.txt": {
+   "id": "Apache-2.0 WITH LLVM-exception",
+   "url": "https://llvm.org/LICENSE.txt",
+   "role": "license",
+   "note": "实测：前 3 行题头 + Apache-2.0 正文 + 'LLVM Exceptions to the Apache 2.0 License' 段 ⇒ 合体，不是单纯 Apache-2.0（标成纯 Apache-2.0 会丢掉例外条款）。"
+  },
+  "clang.js": {
+   "id": "MIT OR NCSA",
+   "url": "https://github.com/emscripten-core/emscripten/blob/main/LICENSE",
+   "role": "payload",
+   "note": "emscripten 胶水。实测 LICENSE-EMSCRIPTEN.txt 首段：'available under 2 licenses, the MIT license and the University of Illinois/NCSA Open Source License' ⇒ MIT OR NCSA，不是 BSD-3-Clause。"
+  },
+  "lld-wasm-only.js": {
+   "id": "MIT OR NCSA",
+   "url": "https://github.com/emscripten-core/emscripten/blob/main/LICENSE",
+   "role": "payload"
+  },
+  "LICENSE-EMSCRIPTEN.txt": {
+   "id": "MIT OR NCSA",
+   "url": "https://github.com/emscripten-core/emscripten/blob/main/LICENSE",
+   "role": "license"
+  },
+  "sysroot-headers.tar": {
+   "id": "(Apache-2.0 WITH LLVM-exception) AND (MIT OR NCSA)",
+   "url": "https://github.com/emscripten-core/emscripten/blob/main/LICENSE",
+   "role": "payload",
+   "note": "混合：libc++/libc 头是 LLVM 派生（Apache-2.0 WITH LLVM-exception），emscripten 的 compat/ 头是 MIT OR NCSA。一个 tar 里两种，所以用 AND。"
+  },
+  "sysroot-headers.wasm64.tar": {
+   "id": "(Apache-2.0 WITH LLVM-exception) AND (MIT OR NCSA)",
+   "url": "https://github.com/emscripten-core/emscripten/blob/main/LICENSE",
+   "role": "payload",
+   "note": "与 wasm32 那份同构（include/ 是架构共享的）。"
+  },
+  "driver/abi.mjs": {
+   "id": "AGPL-3.0-or-later",
+   "url": "https://github.com/ArchivalEra/LLVM-wasm/blob/main/LICENSE",
+   "role": "payload"
+  },
+  "driver/compile-core.mjs": {
+   "id": "AGPL-3.0-or-later",
+   "url": "https://github.com/ArchivalEra/LLVM-wasm/blob/main/LICENSE",
+   "role": "payload"
+  },
+  "driver/sysroot-bundle.mjs": {
+   "id": "AGPL-3.0-or-later",
+   "url": "https://github.com/ArchivalEra/LLVM-wasm/blob/main/LICENSE",
+   "role": "payload"
+  },
+  "driver/tar-reader.mjs": {
+   "id": "AGPL-3.0-or-later",
+   "url": "https://github.com/ArchivalEra/LLVM-wasm/blob/main/LICENSE",
+   "role": "payload"
+  },
+  "driver/toolchain.mjs": {
+   "id": "AGPL-3.0-or-later",
+   "url": "https://github.com/ArchivalEra/LLVM-wasm/blob/main/LICENSE",
+   "role": "payload"
+  },
+  "LICENSE": {
+   "id": "AGPL-3.0-or-later",
+   "url": "https://github.com/ArchivalEra/LLVM-wasm/blob/main/LICENSE",
+   "role": "license"
   }
+ },
+ "_spdx_verified": {
+  "date": "2026-11-01",
+  "source": "https://github.com/spdx/license-list-data (licenses.md)",
+  "ids": {
+   "Apache-2.0": "licenses.md 表格内",
+   "MIT": "licenses.md 表格内",
+   "AGPL-3.0-or-later": "licenses.md 表格内",
+   "NCSA": "licenses.md 第 483 行 \"University of Illinois/NCSA Open Source License\"",
+   "LLVM-exception": "licenses.md 第 772 行（例外，用于 WITH）"
+  },
+  "why": "Static-Contract mail/023 §2 指出「NCSA 是否真实 SPDX ID 我无法验证，协议也不验」。这条是可核的，已核：四个 id 加一个例外全部在官方列表里，且 text/NCSA.txt 与 LICENSE-EMSCRIPTEN.txt 内的 NCSA 正文同源。⇒ 我校验器抓不到的拼写错误，这里用外部权威补上了依据。"
+ }
 }
