@@ -241,6 +241,13 @@ jobs:
       # 同时抓 draft —— gh 在慢网络下会留 draft，而 draft 对客户端不可见。
       - name: Read the release back and reconcile
         if: inputs.publish
+        env:
+          # ★ 这步漏了两个 env，第一次跑就撞上：没有 GH_TOKEN 时 `gh` 直接
+          # 退出 4（"To use GitHub CLI in a GitHub Actions workflow..."），
+          # 而没有 INPUT_TAG 时 `gh release view ""` 同样失败。
+          # 症状是 job 红而发布其实是好的 —— 反读没跑成，不等于反读通过。
+          INPUT_TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           DRAFT=$(gh release view "$INPUT_TAG" -R "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)
           if [ "$DRAFT" = "true" ]; then echo "FATAL: draft，客户端取不到"; exit 1; fi
