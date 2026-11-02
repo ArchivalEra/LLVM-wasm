@@ -235,8 +235,10 @@ tag/pin。**载荷真变了**（重编 clang、换 sysroot）必须在有工具�
 | `sysroot-headers*.tar` | `(Apache-2.0 WITH LLVM-exception) AND (MIT OR NCSA)` | 一个 tar 里两种：libc++ 头是 LLVM 派生，emscripten 的 compat 头是 MIT/NCSA |
 | `driver/*.mjs` / `LICENSE` | `AGPL-3.0-or-later` | 本仓自己的代码 |
 
-首次真发 schema 3 是 **v0.1.6**：载荷与 v0.1.5 逐个 sha 相同，只有 manifest 换了 schema
-（纯契约升级）。客户端规则一行：`entry.license ?? manifest.license.id`。
+首次真发 schema 3 是 **v0.1.6**（2026-11-02，由 Action 发出，反读通过）：
+载荷与 v0.1.5 **逐个 (name,bytes,sha256) 相同**（从两份 manifest 对读确认），
+只有 manifest 换了 schema —— 纯契约升级。客户端规则一行：
+`entry.license ?? manifest.license.id`。
 
 每个 id 都核过官方 SPDX 列表（来源与行号记在 `release/licenses.json` 的 `_spdx_verified`）——
 协议不验词表，所以"这个 id 拼对了没有"这件事只能靠外部权威或人。
