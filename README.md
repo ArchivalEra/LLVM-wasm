@@ -240,6 +240,9 @@ tag/pin。**载荷真变了**（重编 clang、换 sysroot）必须在有工具�
 只有 manifest 换了 schema —— 纯契约升级。客户端规则一行：
 `entry.license ?? manifest.license.id`。
 
+跨 release 的对读（`v0.1.5` vs `v0.1.6` 的 `(name,bytes,sha256)`）已核：**零差异**。
+发布说明里「No payload changed」这类话必须对着两份 manifest 核，不能凭印象写。
+
 每个 id 都核过官方 SPDX 列表（来源与行号记在 `release/licenses.json` 的 `_spdx_verified`）——
 协议不验词表，所以"这个 id 拼对了没有"这件事只能靠外部权威或人。
 
