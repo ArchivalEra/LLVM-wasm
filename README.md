@@ -159,14 +159,14 @@ tail .git/logs/HEAD                  # reflog 一般完好，给出最后一个�
 
 ```sh
 # 仓库页 → Actions → release → Run workflow
-#   tag:        v0.1.5
-#   source_tag: v0.1.4      ← 承载载荷的来源 bundle
+#   tag:        v0.1.6
+#   source_tag: v0.1.5      ← 承载载荷的来源 release
 #   split:      true        ← 同时发 5 MiB 分片形态
 #   publish:    false       ← ★ 先用 false 跑一遍，绿了再 true
 ```
 
 **为什么**：三个仓都踩过同一个坑 —— 慢网络下 `gh release create` 超时，留下 **draft**；
-而 draft 对客户端不可见，本地却看着"资产都在"。v0.1.5 还有 105 个分片要分批传。
+而 draft 对客户端不可见，本地却看着"资产都在"。分片有上百个，要分批传。
 
 **CI 的边界，说清楚**：CI **不重建工具链**（`make-release.sh` 要 300 MB emsdk 和数小时
 建出的 clang.wasm/lld.wasm，都不入库）。所以 Action 走
@@ -195,7 +195,7 @@ tag/pin。**载荷真变了**（重编 clang、换 sysroot）必须在有工具�
 整包 tar.gz 因此不再发布 —— 它的内容已由 identity 分片完整表达：
 
 ```sh
-# v0.1.5 起 release 里只有 manifest + 105 分片；整包按下面这条路径拼回
+# 契约形态的 release 里只有 manifest + 分片；整包按下面这条路径拼回
 # 从分片拼回整包（契约客户端算法第 4/5 步）
 #   逐块 GET → 校验 bytes+sha256 → 解码 → 拼接 → 校验 entry.sha256
 # 14 个载荷全部可重建，且重建后再切分得到逐字节相同的分片

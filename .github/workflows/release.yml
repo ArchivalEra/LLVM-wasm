@@ -14,7 +14,7 @@ name: release
 #     可判定性破掉。
 #
 #   本仓到 v0.1.4 为止发的是整包 tar.gz（13/14 个独立文件打进一个 tar）。
-#   从 v0.1.5 起改为契约形态：manifest.json + 105 个扁平分片，**仅此**。
+#   从 v0.1.6 起改为契约形态（v0.1.5 因许可声明不完整已撤除）：manifest.json + 105 个扁平分片，**仅此**。
 #
 # ★ 载荷从哪来（这条以前说不清，现在说清）：
 #   clang.wasm/lld.wasm 要几小时才建出来，且不入库 ⇒ CI 不重建。
@@ -30,7 +30,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to release (e.g. v0.1.5)'
+        description: 'Tag to release (e.g. v0.1.6)'
         required: true
         type: string
       source_tag:

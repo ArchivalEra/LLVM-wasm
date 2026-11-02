@@ -1,8 +1,8 @@
-No payload changed. This release upgrades the manifest to contract v1.1 (schema 3), which adds a licence declaration.
+This release declares licences. The manifest is now contract v1.1 (schema 3), which makes a licence declaration compulsory; every payload carries its own.
 
-**Same bytes as v0.1.5**
+**Same toolchain as the previous build**
 
-Same emsdk 6.0.12, same clang/lld, same sysroots, same driver, same 14 payloads and the same 105 chunks -- `release/payloads.json` and every per-chunk sha256 are unchanged. If you already have v0.1.5's chunks, you have v0.1.6's payload bytes.
+Same emsdk 6.0.12, same clang/lld, same sysroots, same driver, same 14 payloads, same 105 chunks -- `release/payloads.json` and every per-chunk sha256 are unchanged from the previous build of this toolchain.
 
 **What is new is the licence**
 
@@ -30,5 +30,15 @@ All four identifiers (plus `LLVM-exception`) are checked against the official SP
 - The upgrade asserts byte identity is untouched: only `schema`, `license` and `role` may change. If any payload name, size or hash moved, it refuses to write.
 - `697 PASS / 0 FAIL` from the contract checker, schema 3, with `--base` reading every chunk off disk.
 - The release contains exactly the manifest's asset set -- 105 chunks plus `manifest.json`, nothing else.
+
+**On v0.1.5 being gone**
+
+v0.1.5 has been withdrawn. Schema 2 is legitimate when a payload genuinely
+cannot state its licence -- the format exists so such resources can still
+travel under the contract. v0.1.5 was not that case: its 14 payloads carry three
+identifiable licences, including three licence texts inside the release itself,
+and the manifest declared none of them (14 entries with no licence field, no
+top-level licence). That is an incomplete declaration, not an honest silence.
+Every payload byte is present in v0.1.6, so nothing is lost by the withdrawal.
 
 Previously released tags v0.1.0-v0.1.4 use the pre-contract schema 1 format and are not converted: release history is not rewritten.
