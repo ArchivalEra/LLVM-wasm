@@ -95,5 +95,5 @@
   },
   "why": "Static-Contract mail/023 §2 指出「NCSA 是否真实 SPDX ID 我无法验证，协议也不验」。这条是可核的，已核：四个 id 加一个例外全部在官方列表里，且 text/NCSA.txt 与 LICENSE-EMSCRIPTEN.txt 内的 NCSA 正文同源。⇒ 我校验器抓不到的拼写错误，这里用外部权威补上了依据。"
  },
- "_key_form": "键是 manifest 里 entry.name 的**原样字面串**（契约仓 mail/027 纠正：无 toolchain/ 前缀；driver/ 已扁平为 driver__）。不许归一 —— 归一规则进工具就得当契约维护。"
+ "_key_form": "键是 manifest 里 entry.name 的**原样字面串**（`clang.wasm`、`driver__abi.mjs`）。无 toolchain/ 前缀；driver/ 已扁平为 driver__。**不许归一** —— 归一规则进工具就得当契约维护，进调用方数据则会静默产生永远匹配不上的键（我两者都犯过：先在本文件按 `driver/abi.mjs` 写过一次）。"
 }
