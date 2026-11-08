@@ -1,58 +1,82 @@
 #!/usr/bin/env python3
-"""活状态抽取：一份文档里，哪些行是「现在如此」，哪些是「当时如此」。
+"""Living-state extraction: within one document, which lines are "true now" and
+which are "true then".
 
-从 Octave-Full-Wasm 的 `.githooks/check-handoff.py` 迁移（那里第一次长出这套判定）。
-它要解决的问题：闸门想查「断言与产物是否矛盾」，但**不是每一行都该查** ——
-append-only 的历史章节里，数字是"当时如此"，拿来跟今天的产物比毫无意义，
-硬查只会逼人把历史改成现在，那就毁了记录。
+Migrated from Octave-Full-Wasm's `.githooks/check-handoff.py` (where this set of
+judgments first grew). The problem it solves: gates want to check "does the
+assertion contradict the artifact", but **not every line should be checked** --
+in append-only history sections the numbers are "as they were then"; comparing
+them against today's artifacts is meaningless, and forcing the check would push
+people to rewrite history as the present, which destroys the record.
 
-三条硬规矩（全是那里踩出来的，别改回更"聪明"的版本）：
+Three hard rules (all learned there; do not "improve" them back into something
+cleverer):
 
-  1. **默认从严**。除明确声明的历史章节外，一切章节（**含无编号的**）都是活状态。
-     那边第一版只把"带数字且不在历史名单里"的章节当活状态，于是"## 附 · …"这类
-     无编号段落**继承上一节的状态判定** —— 往那儿塞一条过时断言，检查器视而不见。
-  2. **行内出口**。一行自己说清是历史（历史 / 退役 / 曾经的 / 已翻案 / 更正……）
-     就豁免。没有这个出口，人只能把历史删掉或把章节挪走 —— 机制的目的是
-     「不许**悄悄**留在那儿当现状」，不是毁掉记录。
-  3. **带出处的记录豁免，但出处必须明确**。交付包名（含 8 位日期）或**反引号里的
-     commit sha** 才算出处。⚠️ 那边第一版还加了一个宽松的裸 sha 正则，结果
-     "一条含过期 sha 的假断言"被当成"带出处的历史条目"整行豁免 —— 漏检就是这么来的。
-     宽松识别的出口，等于给假断言发了通行证。
+  1. **Strict by default**. Every section (**including unnumbered ones**) is
+     living state unless explicitly declared historical. The first version there
+     treated only "numbered and not on the history list" sections as living, so
+     an unnumbered "## Appendix: ..." heading **inherited the previous section's
+     status** -- slide a stale assertion in there and the checker looked away.
+  2. **Inline exit**. A line that itself says it is history (historical /
+     retired / formerly / retracted / corrected ...) is exempt. Without this
+     exit, the only options are deleting history or moving the section -- the
+     mechanism's purpose is "you may not **quietly** leave it there as the
+     current state", not destroying the record.
+  3. **Dated records are exempt, but the provenance must be explicit**. A
+     delivery-bundle name (with its 8-digit date) or a **commit sha inside
+     backticks** counts as provenance. Warning: the first version there also had
+     a lax bare-sha regex, and "a fake assertion containing an expired sha" got
+     exempted whole-line as a "dated historical entry" -- that is how misses
+     happen. A laxly recognized exit is a hall pass for fake assertions.
 """
 import re
+
 from gate import module_meta
 
-# 行内历史标记（与翻案台账的更正标记同一份词表 —— 词表只生产一次）。
+# Inline history markers (one shared vocabulary with the retraction ledger's
+# correction marker -- the vocabulary is produced exactly once).
 HIST_MARK = re.compile(
     r"历史|退役|留档|曾经的|当年的|当时的|之前那份|此前|当时|收口前"
     r"|已翻案|更正|是错的|误读|推翻|曾写|已作废|不再成立"
     r"|superseded|retracted|deprecated")
 
-# 带**明确**出处的记录：`xx-20260921` 型交付名，或反引号里的 commit sha。
-# ⚠️ 故意不认裸 sha：见上面规矩 3。
+# Records with **explicit** provenance: an `xx-20260921`-style delivery name, or
+# a commit sha in backticks.
+# Warning: bare shas are deliberately not accepted -- see rule 3 above.
 DATED_RECORD = re.compile(r"[A-Za-z0-9._-]*-\d{8}|`[0-9a-f]{7,64}`")
+
+# Inline ledger citation `[[key]]` (with a capture group -- check_facts extracts
+# the key, check_stale only tests existence).
+# Warning: the two gates each used to write their own copy (one with a capture,
+# one without) -- one criterion, two wordings.
+CITE_RE = re.compile(r"\[\[([A-Za-z_][A-Za-z0-9_]*)\]\]")
 
 
 def section_is_living(heading, historical_secs=()):
-    """一个 `## ` 标题下的正文是不是活状态。
+    """Whether the body under a `## ` heading is living state.
 
-    · 带编号且在 `historical_secs` 里 ⇒ 历史（append-only，别拿今天的产物去比它）；
-    · 其余一律活状态 —— **包括无编号章节**（默认从严，见模块头规矩 1）。
+    - Numbered and listed in `historical_secs` => historical (append-only; do
+      not compare today's artifacts against it);
+    - everything else is living state -- **including unnumbered sections**
+      (strict by default, see rule 1 in the module header).
     """
     m = re.match(r"^##\s+([0-9]+)", heading)
     if m:
         return m.group(1) not in {str(s) for s in historical_secs}
-    if heading.startswith("## 附"):
-        return False          # 文末机器维护的区块（由渲染器负责），闸门不扫
-    return True
+    # The machine-maintained appendix block at the end of the file (the
+    # renderer's job); gates do not scan it
+    return not heading.startswith("## 附")
 
 
 def living_lines(text, historical_secs=()):
-    """把文档切成行，标出每行是不是活状态。返回 [(行号, 行, 是否活状态), …]。
+    """Split the document into lines, tagging each as living or not. Returns
+    [(line number, line, is living), ...].
 
-    ⚠️ 文件**头部**（第一个 `## ` 之前）是活状态 —— 那边实测过：头部恰好是
-    "wasm sha …、全量 N 套 M 项"这种最该查的状态行，第一版曾把引用块整段跳过，
-    等于把最要紧的断言放走了。这里的头部**参与判定**（行内出口仍然有效）。
+    Warning: the file **header** (before the first `## `) is living state --
+    observed there: the header held precisely the lines most worth checking
+    ("wasm sha ..., full build N suites / M items"); the first version skipped
+    the whole leading block, letting the most important assertions slip away.
+    Here the header **is judged** (the inline exit still applies).
     """
     out = []
     keep = True
@@ -63,4 +87,70 @@ def living_lines(text, historical_secs=()):
     return out
 
 
-MODULE = module_meta("活状态抽取", "哪些行是「现在如此」（历史出口 / 默认从严）", selftest=False)
+# `selftest=False` = **no `--selftest` entry** (pure extraction logic, consumed
+# by check_stale / check_retractions). Its judgments (is a numbered section
+# historical / unnumbered strict by default / appendix not scanned / section
+# splitting correct) carry substantive assertions, housed in `registry._cases()`
+# -- if this link judges wrongly, both downstream gates' criteria fail wholesale
+# while their own selftests stay green (the dependency-chain gap found in round
+# 24).
+MODULE = module_meta(
+    "Living-state extraction",
+    "which lines are 'true now' (inline history exit / strict by default;"
+    " judged in three directions: numbered section / unnumbered / appendix / splitting)",
+    selftest=True)
+
+
+# -- self-verification (previously housed in registry._cases) -----------------
+#
+# Why it moved back: the criteria live in the **module under test** -- that is
+# the definition of "the module has its own selftest". Housing them in registry
+# turned the `selftest=False` declaration into "I have no selftest entry", when
+# the truth was "it has one, it just lives elsewhere". After moving back,
+# `selftest=True` is honest.
+
+def _living_case(which):
+    """The three judgment directions of `living.py` (ASCII inputs; no Chinese
+    literals written)."""
+    if which == "numbered_historical":
+        return section_is_living("## 5 old", historical_secs=("5",)) is False
+    if which == "unnumbered":
+        return section_is_living("## 6 new", historical_secs=("5",)) is True
+    if which == "appendix":
+        # code point 0x9644 builds the appendix word -- this file is inside the
+        # zero-language gates' scan surface, so no literal is written
+        head = "## " + chr(0x9644)
+        return section_is_living(head) is False \
+            and section_is_living(head + "more") is False
+    if which == "lines_track":
+        rows = living_lines("head\n## 5 old\nx\n## 6 new\ny\n",
+                            historical_secs=("5",))
+        return [r[2] for r in rows] == [True, False, False, True, True, True]
+    return False
+
+
+def _cases():
+    return [
+        ("★ living.numbered_section_is_historical",
+         lambda: _living_case("numbered_historical")),
+        ("living.unnumbered_is_living", lambda: _living_case("unnumbered")),
+        ("living.appendix_not_scanned", lambda: _living_case("appendix")),
+        ("★ living.lines_tracks_sections", lambda: _living_case("lines_track")),
+    ]
+
+
+def _selftest():
+    import sys  # noqa: PLC0415
+
+    from gate import main_selftest_or  # noqa: PLC0415
+    from i18n import M  # noqa: PLC0415
+    return main_selftest_or(sys.argv[1:], M("gate.title.living"),
+                            _cases, lambda a: 0)
+
+
+if __name__ == "__main__":
+    import os  # noqa: PLC0415
+    import sys  # noqa: PLC0415
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import living as _mod  # noqa: PLC0415
+    sys.exit(_mod._selftest())

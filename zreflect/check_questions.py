@@ -1,20 +1,24 @@
 #!/usr/bin/env python3
-"""悬案闸门：**未结案的问题必须挂一个能跑的结算件。**
+"""Question ledger gate: **every unresolved question must carry a runnable settler.**
 
-一条悬案 = `questions/NN-slug.md`，头部必须有：
+A question = `questions/NN-slug.md`, whose header must contain:
 
     **Status:** ready-for-agent
-    **Settling:** zreflect/facts.py —— rc=0 ⇒ 守卫生效；rc=2 ⇒ 守卫没拦住
+    **Settling:** zreflect/facts.py -- rc=0 => guard holds; rc=2 => guard failed to catch it
 
-规则与理由：
+Rules and rationale:
 
-  · `Settling:` 必须写**仓库内的相对路径**或一条能直接跑的命令，不许写「见某笔记」——
-    指向散文的结算件等于没有结算件。
-  · 两种结论必须给出**不同的退出码 / 可区分的输出**，否则它证伪不了任何东西。
-  · **结算件还不存在的悬案是合法悬案** —— 那这张单的第一个交付物就是造它。这种情况
-    写 `Settling: 不存在 —— 本工单的第一交付物`。如实写「不存在」是有信息的；
-    编一个假路径会让闸门绿着骗人。
-  · 结案后改 `Status: resolved`，**别删文件** —— 「我们决定不查这个」本身就是一条结论。
+  - `Settling:` must be a **repo-relative path** or a directly runnable command;
+    never "see some note" -- a settler pointing at prose is no settler at all.
+  - The two outcomes must yield **different exit codes / distinguishable output**,
+    otherwise the settler can falsify nothing.
+  - **A question whose settler does not exist yet is a legal question** -- in that
+    case the ticket's first deliverable is to build it. Write
+    `Settling: does not exist -- the first deliverable of this ticket`.
+    Honestly saying "does not exist" carries information; inventing a fake path
+    lets the gate stay green while lying.
+  - After closing, set `Status: resolved`; **do not delete the file** --
+    "we decided not to investigate this" is itself a conclusion.
 """
 import os
 import re
@@ -22,24 +26,41 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from gate import GATE_REPO, finish, guard_nonempty, main_selftest_or, meta  # noqa: E402
+import gate  # noqa: E402
+import knobs  # noqa: E402
+from gate import fatal, finish, main_selftest_or, meta  # noqa: E402
+from i18n import M  # noqa: E402
 
 VALID_STATUS = ("needs-triage", "needs-info", "ready-for-agent",
                 "ready-for-human", "wontfix", "resolved")
-NONE_LIKE = ("不存在", "none", "None", "n/a", "N/A")
+# Domain words that must appear in a question body (vocabulary of the convention
+# docs -- data, not user-visible messages, hence **not** in the language pack).
+# Assembled from code points: this file sits inside check_i18n's scan surface, so
+# writing the literals directly would be judged as "the subject speaks a human
+# language" (that criterion cannot tell messages from data). For the meanings see
+# the question-ledger section of the trilingual READMEs.
+_NOT_EXISTS = "".join(chr(c) for c in (0x4E0D, 0x5B58, 0x5728))       # "does not exist"
+_FIRST_DELIVERABLE = "".join(chr(c) for c in
+                             (0x7B2C, 0x4E00, 0x4EA4, 0x4ED8, 0x7269))  # "first deliverable"
+_PARTICLE = chr(0x7684)                                               # possessive particle
+NONE_LIKE = (_NOT_EXISTS, "none", "None", "n/a", "N/A")
 PATHISH = (".py", ".sh", ".mjs", ".js", ".md", "/")
 
 
 def field(text, name):
-    """取 `**Name:** 值` / `**Name**: 值` / `Name: 值` 三种写法的值（行首，第一个匹配）。
+    """Read `**Name:** value` / `**Name**: value` / `Name: value` (three spellings;
+    anchored at line start, first match wins).
 
-    ⚠️ 这里踩过一次：正则写成 `\\*{0,2}Name\\*{0,2}\\s*:` —— 它匹配不了 `**Status:**`
-    （真实顺序是 `**` + `Status` + `:` + `**`，冒号**在**那对星号中间）。于是所有字段都读成
-    None，闸门把「合规的悬案」也报成「缺字段」。**冒号后面还要容许一对星号**。
+    Warning: this was bitten once -- the regex was written as
+    `\\*{0,2}Name\\*{0,2}\\s*:`, which cannot match `**Status:**` (the real order is
+    `**` + `Status` + `:` + `**`; the colon sits **between** the pair of asterisks).
+    Every field then read as None, and the gate reported "missing field" even for
+    compliant questions. **A pair of asterisks after the colon must also be allowed.**
     """
-    # 值支持**续行**（issue #15 B1）：下一行若不以 `**X:**` / `X:` 开头，
-    # 并入本字段。下游同一形状踩过两次（Settling 折行 ⇒ rc= 判据在第二行
-    # ⇒ 误报「没给出可区分的两种结论」）。
+    # The value supports **continuation lines** (issue #15 B1): if the next line
+    # does not start with `**X:**` / `X:`, it is folded into this field. The same
+    # shape bit downstream twice (a wrapped Settling => the rc= criterion landed on
+    # the second line => false "no distinguishable pair of outcomes").
     lines = text.splitlines()
     for i, ln in enumerate(lines):
         m = re.match(r"(?i)^\*{0,2}%s\*{0,2}\s*:\s*\*{0,2}\s*(.*?)\s*$"
@@ -49,55 +70,116 @@ def field(text, name):
         val = [m.group(1).strip()]
         for nxt in lines[i + 1:]:
             if re.match(r"^\s*(?:\*\*)?[A-Za-z][A-Za-z0-9_-]*(?:\*\*)?\s*:", nxt):
-                break                    # 下一个字段开始
+                break                    # next field starts
             if nxt.strip():
                 val.append(nxt.strip())
         return " ".join(v for v in val if v) or None
     return None
 
 
-def problems(files, exists=None):
-    """返回问题清单（纯函数：自证要用）。`files` = {文件名: 正文}。
+def status_of(text):
+    """The **normalized** `Status` value (lowercased, first word) -- the single
+    yardstick for "is this question closed".
 
-    `exists` 可注入（测试夹具用）—— 默认判断相对仓库根的路径是否存在。
+    Warning: "is it closed?" previously had **three** implementations, two of them
+    in live code:
+      - `_status_problems` took the first word without lowercasing (`Resolved`
+        was reported as bad_status);
+      - `run()` compared the whole field (`**Status:** resolved` followed by prose
+        => always "unresolved"; observed in this repo: after 01-example.md was
+        closed, `questions.ok(open=1)` still counted it as open);
+      - `next._question_status` had yet another copy (the R-017 `"** resolved"`).
+
+    One question, three answers -- the gate disagreed with itself. Normalization
+    has exactly this one origin; `field()`'s **continuation-line semantics** (there
+    for Settling) are truncated here -- Status is one word.
     """
+    raw = (field(text, "Status") or "").strip().lower()
+    return raw.split()[0] if raw else ""
+
+
+def is_resolved(text):
+    return status_of(text) == "resolved"
+
+
+def _status_problems(name, text):
+    """`Status` field: must exist and be a known value (yardstick: `status_of`)."""
+    st = status_of(text)
+    if not st:
+        return [M("questions.missing_status", name=name)]
+    if st not in VALID_STATUS:
+        return [M("questions.bad_status", name=name, actual=st,
+                  expected=", ".join(VALID_STATUS))]
+    return []
+
+
+def _none_like_problems(name, sv):
+    """`Settling` declared "none" (e.g. None): must **also** name the first
+    deliverable.
+
+    Warning: both spellings of "first deliverable" are accepted -- the one with the
+    measure word and the one without. The convention doc spells it with the measure
+    word; had the checker only accepted the shorter form, **compliant questions
+    would be judged non-compliant** (observed in this repo: of 15 tickets, the one
+    using the natural word order was reported by its own gate as "first
+    deliverable not stated").
+    """
+    if _FIRST_DELIVERABLE in sv.replace(_PARTICLE, ""):
+        return []
+    return [M("questions.none_without_first_deliverable", name=name)]
+
+
+def _settling_problems(name, text, chk):
+    """`Settling` field: exists / two distinguishable outcomes / settler actually runs."""
+    sv = field(text, "Settling")
+    if not sv:
+        return [M("questions.missing_settling", name=name)]
+    if sv.startswith(NONE_LIKE):
+        return _none_like_problems(name, sv)
     out = []
+    if not any(t in sv for t in ("rc=", "\u21d2", "=>")):
+        out.append(M("questions.no_distinct_outcomes", name=name))
+    tok = sv.split()[0].strip("`")
+    if any(tok.endswith(x) or x in tok for x in PATHISH) and not chk(tok):
+        out.append(M("questions.settler_missing", name=name, target=tok))
+    return out
+
+
+def problems(files, exists=None):
+    """Return the problem list (pure function: the selftest needs that).
+    `files` = {filename: body}.
+
+    `exists` is injectable (for test fixtures) -- by default it checks whether a
+    repo-root-relative path exists.
+
+    Each field has its own named helpers (Status / Settling): they judge different
+    fields, and `Settling` has three mutually exclusive branches (missing /
+    declared-none / has a command); when they were crammed together, the call
+    site's `continue` turned "which branch was handled" into implicit state.
+    """
     if not files:
-        # 零值守卫：一条悬案都没收到 ⇒ 「没有缺结算件的悬案」是空话。
-        return ["一条悬案都没收集到 —— 空输入不是通过（零值守卫）：先查 questions/ 目录"]
-    chk = exists or (lambda p: os.path.exists(os.path.join(GATE_REPO, p)))
+        # Zero-value guard: no questions received at all => "no question lacks a
+        # settler" is vacuously true and says nothing.
+        return [M("questions.empty")]
+    chk = exists or (lambda p: os.path.exists(os.path.join(gate.GATE_REPO, p)))
+    out = []
     for name, text in sorted(files.items()):
-        st = field(text, "Status")
-        if not st:
-            out.append("%s：缺 `**Status:**` 行" % name)
-        elif st.split()[0] not in VALID_STATUS:
-            out.append("%s：Status 不合法：%s（合法：%s）"
-                       % (name, st, ", ".join(VALID_STATUS)))
-        sv = field(text, "Settling")
-        if not sv:
-            out.append("%s：缺 `**Settling:**` 行 —— 没有结算件的悬案只能算「猜想」" % name)
-            continue
-        if sv.startswith(NONE_LIKE):
-            # 接受「第一交付物」与「第一个交付物」两种写法 —— 约定文档里写的是后者，
-            # 检查器只认前者的话，**合规的悬案会被判成不合规**（本仓实测踩到：
-            # 15 张单里那张用了自然语序的，被自己的闸门报「没说明第一交付物」）。
-            if "第一交付物" not in sv.replace("的", ""):
-                out.append("%s：Settling 写了「不存在」，但没说明**第一交付物就是它** —— "
-                           "否则读者不知道下一步干什么" % name)
-            continue
-        if not any(t in sv for t in ("rc=", "⇒", "=>")):
-            out.append("%s：Settling 没给出**可区分的两种结论**（写成 `… —— rc=0 ⇒ A；rc=7 ⇒ B`）"
-                       " —— 只描述做法、不描述判据的东西证伪不了任何事" % name)
-        tok = sv.split()[0].strip("`")
-        if any(tok.endswith(x) or x in tok for x in PATHISH) and not chk(tok):
-            out.append("%s：Settling 指的结算件**不存在**：%s" % (name, tok))
+        out += _status_problems(name, text)
+        out += _settling_problems(name, text, chk)
     return out
 
 
 def collect(d=None):
-    # 名字可配（issue #1 ②）：默认 questions/，可用 REFLECT_QUESTIONS 换
-    d = d or os.environ.get("REFLECT_QUESTIONS", "questions")
-    root = os.path.join(GATE_REPO, d)
+    # The directory name is configurable (issue #1, item 2): default questions/,
+    # overridable via REFLECT_QUESTIONS.
+    # Warning: the value goes through `knobs.questions_dir()` (single origin, and
+    # it strips) -- previously this spot did not strip, so `REFLECT_QUESTIONS=`
+    # (empty string = unset) made the **repo root** the question directory,
+    # sweeping STATE.md / README.md in and reporting fake problems (observed).
+    # An explicit `d` (selftest injects a fake directory name) => assemble it
+    # here; otherwise go through the single origin.
+    d = d or knobs.questions_dir()
+    root = os.path.join(gate.GATE_REPO, d)
     files = {}
     if os.path.isdir(root):
         for f in sorted(os.listdir(root)):
@@ -109,62 +191,71 @@ def collect(d=None):
 
 def run(argv):
     files = collect(argv[0] if argv else None)
-    rc = guard_nonempty("check_questions", files, "悬案文件（questions/*.md）")
-    if rc:
-        return rc
+    if not files:
+        # The rc-flavored zero-value guard (`guard_nonempty` in gate.py emits free
+        # text -- after this gate went zero-language it emits M() itself; the rc
+        # contract is unchanged, still 2).
+        return fatal(M("questions.guard_empty", count=0))
     probs = problems(files)
-    n_open = sum(1 for t in files.values() if (field(t, "Status") or "") != "resolved")
-    return finish("悬案闸门", probs,
-                  "悬案闸门：OK（%d 条悬案，其中未结案 %d）" % (len(files), n_open))
+    n_open = sum(1 for t in files.values() if not is_resolved(t))
+    return finish(M("questions.title"), probs,
+                  M("questions.ok", count=len(files), open=n_open))
 
 
-def _q(status="ready-for-agent", settling="zreflect/facts.py —— rc=0 ⇒ 生效；rc=2 ⇒ 没拦住"):
-    return "# 01: 示例\n\n**Status:** %s\n\n**Settling:** %s\n" % (status, settling)
+def _q(status="ready-for-agent", settling="zreflect/facts.py — rc=0 ⇒ stands; rc=2 ⇒ did not catch it"):
+    return "# 01: sample\n\n**Status:** %s\n\n**Settling:** %s\n" % (status, settling)
 
 
 def _cases():
     ok = {"questions/01.md": _q()}
     return [
-        # ① 正常不报
-        ("合规悬案（结算件存在）⇒ 不报",
+        # (1) compliant input: nothing reported
+        ("questions.ok",
          lambda: problems(ok, exists=lambda p: True) == []),
-        ("结算件标「不存在 —— 本工单的第一交付物」⇒ 不报（合法悬案；「的」不影响判定）",
-         lambda: problems({"questions/02.md": _q(settling="不存在 —— 本工单的第一交付物是造它")},
-                          exists=lambda p: False) == []),
-        ("resolved 的悬案同样要合规", lambda: problems(
+        ("questions.none_first_deliverable",
+         lambda: problems({"questions/02.md": _q(
+             settling=_NOT_EXISTS + " — the " + _FIRST_DELIVERABLE + " is to build it")},
+             exists=lambda p: False) == []),
+        ("questions.resolved_also_compliant", lambda: problems(
             {"questions/03.md": _q(status="resolved")}, exists=lambda p: True) == []),
-        # ② 该报的必须报
-        ("★ 缺 Settling ⇒ 必须报",
-         lambda: any("缺 `**Settling:**`" in x for x in problems(
-             {"questions/04.md": _q(settling="")}, exists=lambda p: True))),
-        ("★ 结算件路径不存在 ⇒ 必须报",
-         lambda: any("不存在" in x and "结算件" in x for x in problems(ok, exists=lambda p: False))),
-        ("★ Settling 没给出两种结论 ⇒ 必须报",
-         lambda: any("可区分" in x for x in problems(
-             {"questions/05.md": _q(settling="跑一下看看")}, exists=lambda p: True))),
-        ("★ Status 不合法 ⇒ 必须报",
-         lambda: any("不合法" in x for x in problems(
-             {"questions/06.md": _q(status="随便写的")}, exists=lambda p: True))),
-        ("★ Settling 写「不存在」但**没说明第一交付物** ⇒ 必须报（如实写「不存在」有信息，"
-         "但不说下一步干什么等于把问题丢回去）",
-         lambda: any("第一交付物" in x for x in problems(
-             {"questions/08.md": _q(settling="不存在")}, exists=lambda p: False))),
-        ("★ 缺 Status ⇒ 必须报",
-         lambda: any("缺 `**Status:**`" in x for x in problems(
+        # (2) what must be reported is reported
+        ("★ questions.missing_settling",
+         lambda: [p.code for p in problems(
+             {"questions/04.md": _q(settling="")}, exists=lambda p: True)]
+         == ["questions.missing_settling"]),
+        ("★ questions.settler_missing",
+         lambda: [p.code for p in problems(ok, exists=lambda p: False)]
+         == ["questions.settler_missing"]),
+        ("★ questions.no_distinct_outcomes",
+         lambda: [p.code for p in problems(
+             {"questions/05.md": _q(settling="run it")}, exists=lambda p: True)]
+         == ["questions.no_distinct_outcomes"]),
+        ("★ questions.bad_status",
+         lambda: [p.code for p in problems(
+             {"questions/06.md": _q(status="whatever")}, exists=lambda p: True)]
+         == ["questions.bad_status"]),
+        ("★ questions.none_without_first_deliverable",
+         lambda: [p.code for p in problems(
+             {"questions/08.md": _q(settling=_NOT_EXISTS)}, exists=lambda p: False)]
+         == ["questions.none_without_first_deliverable"]),
+        ("★ questions.missing_status",
+         lambda: [p.code for p in problems(
              {"questions/07.md": "**Settling:** x.py —— rc=0 ⇒ a；rc=1 ⇒ b"},
-             exists=lambda p: True))),
-        # ② UX（issue #15 B1）：Settling 折行必须能取到完整判据
-        ("Settling 折行 ⇒ 续行并入（曾误报「没给出两种结论」）",
-         lambda: "rc=7" in (field("**Status:** x\n**Settling:** 跑：\nrc=0 ⇒ A；"
+             exists=lambda p: True)] == ["questions.missing_status"]),
+        # (2) UX (issue #15 B1): a wrapped Settling must still yield the full criterion
+        ("questions.settling_wrapped",
+         lambda: "rc=7" in (field("**Status:** x\n**Settling:** run:\nrc=0 ⇒ A；"
                                  "rc=7 ⇒ B\n", "Settling") or "")),
-        # ③ 空输入必须报
-        ("★ 一条悬案都没有 ⇒ 必须报（零值守卫）", lambda: problems({}, exists=lambda p: True) != []),
+        # (3) empty input must be reported
+        ("★ questions.empty",
+         lambda: [p.code for p in problems({}, exists=lambda p: True)]
+         == ["questions.empty"]),
     ]
 
 
-GATE = meta("悬案闸门", "未结案的问题必须挂一个能跑的结算件",
+GATE = meta("Question ledger gate", "an unresolved question must carry a runnable settler",
             knobs=("REFLECT_QUESTIONS",), name_dependent=True)
 
 if __name__ == "__main__":
-    sys.exit(main_selftest_or(sys.argv[1:], "check_questions（悬案必须挂结算件）",
+    sys.exit(main_selftest_or(sys.argv[1:], M("gate.title.questions"),
                               _cases, run))

@@ -38,7 +38,6 @@
 #   · 不自动拉取/推送 —— 读信是本地动作；
 #   · read/ 里的信只进不出（git mv 保留 --follow 历史；"不删"本意 = 内容不可消失）。
 import os
-import re
 import subprocess
 import sys
 
@@ -56,6 +55,10 @@ import sys
 # 已声明的平台模块」（实测：同步上游后 check_facts 拒绝渲染时的第一条）。
 # 「有 gate 就用 gate 的 module_meta，没有就用退化版」这件事由**赋值处的
 # 选择**表达，不由缩进表达。
+#
+# PINNED: 本文件是**本仓自有**的工具（上游 Einfacht 没有），输出中文是刻意的：
+# PINNED: 读信的人、信件本身、本仓全部正文都是中文 —— 单语仓不配 REFLECT_LANG，
+# PINNED: 语言包永不装载；文案不进语言包（与 check_vendored_sync.py 同一裁定）。
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
     from gate import module_meta
@@ -68,8 +71,10 @@ except ImportError:
     def module_meta(name, summary, selftest=False):
         return _Meta(name, summary, selftest)
 
-    print("note: 本仓无 zreflect/gate.py（非 Einfacht 仓）—— mail-read 以自包含模式运行",
-          file=sys.stderr)
+    # PINNED: 退化提示是本仓自有工具的单语中文（理由见上方模块级声明块）。
+    _note = ("note: 本仓无 zreflect/gate.py（非 Einfacht 仓）"
+             "—— mail-read 以自包含模式运行")
+    print(_note, file=sys.stderr)
 
 MODULE = module_meta("mail 读信入口",
                      "读 = 打印 + 自动归档 read/（纯工具，不进断言面）",
@@ -100,6 +105,8 @@ def _match(query):
 def _archive(name):
     """读过了 ⇒ git mv 进 read/（未跟踪文件退普通 rename）。返回是否成功。
 
+    PINNED: 输出文案是本仓自有工具的单语中文（理由见模块尾注声明）。
+
     ⚠️ 同名冲突拒覆盖（试验场实测 bug#1，2026-10-18）：read/ 已有同名信时，
     git mv 本身会拒，但 rename 兜底会**静默覆盖** ⇒ 旧信丢失（违反"内容不可消失"）。
     修法：目标已存在 ⇒ 不动，报错让人处理（重投同名信本身可疑——编号就该唯一）。
@@ -113,7 +120,8 @@ def _archive(name):
         return False
     r = subprocess.run(["git", "-C", HERE, "mv", os.path.join("mail", name),
                         os.path.join("mail", "read", name)],
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, encoding="utf-8",
+                       errors="replace")
     if r.returncode == 0:
         return True
     src = os.path.join(MAIL, name)
@@ -124,6 +132,10 @@ def _archive(name):
 
 
 def cmd_list():
+    """列未读信（一屏速览）。
+
+    PINNED: 输出文案是本仓自有工具的单语中文（理由见模块尾注声明）。
+    """
     names = unread()
     if not names:
         print("未读区：空（mail/read/ 里的是已读存档）")
@@ -142,6 +154,10 @@ def cmd_list():
 
 
 def cmd_read(query, keep=False):
+    """读一封：打印全文 + 自动归档（--keep 留原处）。
+
+    PINNED: 输出文案是本仓自有工具的单语中文（理由见模块尾注声明）。
+    """
     name = _match(query)
     if not name:
         print("FATAL: 未读区里没有（或不止一封）匹配 %r 的信 —— 先跑无参数列清单" % query,
@@ -182,14 +198,19 @@ def main(argv):
 
 # ── 自证（纯函数档：列/匹配/归档的判据；不碰真 mail/）─────────────────────────
 def _selftest():
-    import tempfile, shutil                                     # noqa: E401
+    """列/匹配/归档的判据自证（不碰真 mail/）。
+
+    PINNED: 自证标签是本仓自有工具的单语中文（理由见模块尾注声明）。
+    """
+    import shutil
+    import tempfile  # noqa: E401
     global HERE, MAIL, READ
     t = tempfile.mkdtemp()
     os.makedirs(os.path.join(t, "mail"))
     saved = (HERE, MAIL, READ)
     HERE, MAIL, READ = t, os.path.join(t, "mail"), os.path.join(t, "mail", "read")
-    open(os.path.join(MAIL, "001-a.md"), "w").write("# 001 · x\n")
-    open(os.path.join(MAIL, "002-b.md"), "w").write("# 002 · y\n")
+    open(os.path.join(MAIL, "001-a.md"), "w", encoding="utf-8").write("# 001 · x\n")
+    open(os.path.join(MAIL, "002-b.md"), "w", encoding="utf-8").write("# 002 · y\n")
     cases = [
         ("列清单：未读区 2 封", lambda: len(unread()) == 2),
         ("匹配：完整名", lambda: _match("001-a.md") == "001-a.md"),
@@ -206,7 +227,7 @@ def _selftest():
         ("★ 同名冲突拒覆盖（试验场 bug#1）：read/ 已有同名 ⇒ _archive 拒 + 新信留未读区",
          lambda: (
              # 再投一封同名 001-a，归档必须拒
-             open(os.path.join(MAIL, "001-a.md"), "w").write("# 001 · 冲突版\n"),
+             open(os.path.join(MAIL, "001-a.md"), "w", encoding="utf-8").write("# 001 · 冲突版\n"),
              not _archive("001-a.md"),
              # 旧信（read/ 里的）内容未被覆盖
              open(os.path.join(READ, "001-a.md"), encoding="utf-8").read() == "# 001 · x\n",

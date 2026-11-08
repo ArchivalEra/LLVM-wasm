@@ -1,73 +1,113 @@
 #!/usr/bin/env python3
-"""事实采集器的契约与帮手 —— 从 Octave-Full-Wasm 的 `.githooks/handoff_facts.py` 迁移。
+"""Contract and helpers for the fact collectors -- migrated from
+Octave-Full-Wasm's `.githooks/handoff_facts.py`.
 
-`measure()`（facts.py）怎么写，决定了台账里的数是**测出来的**还是**编出来的**。
-那边把采集器单独成一个模块、并把下面四条原则写在文件头，因为这个模块同时喂两个
-消费者（重算机器块的生成器 + 查陈旧断言的闸门）—— **两边必须用同一套读法**，
-否则口径分叉，闸门查的就是另一套数字了。
+How `measure()` (facts.py) is written decides whether the numbers in the
+ledger are **measured** or **invented**. Over there the collector was split
+into its own module with the principles below in the file header, because
+this module feeds two consumers (the generator that recomputes the machine
+block + the gate that checks stale assertions) -- **both sides must use the
+same reading**, otherwise the conventions fork and the gate is checking a
+different set of numbers.
 
-四条原则（都是那边踩出来的，采集器必须遵守）：
+The principles (all paid for over there; collectors must obey them):
 
-  1. **只读持久盘产物**，不跑服务、不碰网络。pre-commit 里不该依赖"某个东西正在跑"。
-  2. **不引入会自己在变的输入**：机器块里不放"墙上时钟"、不放 HEAD 的 sha ——
-     否则同一个提交里 `--check` 永远不收敛。要用时间就用**提交日期**。
-     （issue #4 ⑤ 续：**值会变 ≠ 不能进台账，得先声明它怎么变** ——
-     每跑必变的量（随机填充长度、GREASE 载荷、时间戳类）存**一次实测采样**，
-     配一对 `*_stable` 稳定性标记键（消费侧分两档：stable 档逐字判、
-     不稳定档结构判），或显式 `replay=False`；**不许裸存** —— 裸存会让
-     复跑闸门永远红，最后被整闸 `REFLECT_REPLAY=off` 糊掉，那才是真正的
-     无人看管。）
-  3. **读不到就明说**：产物不在（换了机器 / 没挂盘）⇒ `unavailable(what, why)`，
-     让调用方决定是警告还是跳过。**绝不编一个数字** —— 0 是一个数字，会被人当结果引用。
-  4. **贵的测量要有缓存**：先从现有机器块里回收上一次的测量值（`prev_values`），
-     输入没变就沿用。那边用它免掉"每次提交都重压 36 MiB"。
-  5. **输入要有便宜的落点**（issue #6 ②）：产物生成之后，它的输入
-     （源 / 工具 / 旗标 / 环境）必须有一条**不依赖重跑**的可读记录，
-     并配一条**便宜的来源不变式**（`witness`，issue #5）在每次
-     提交时核对。否则"产物没变、产出它的东西变了"不可见。
-     （`witness` 是这条原则的实例；声明式不变量（issue #7，
-     `check_invariants.py`）是另一实例：不变量文件 = 输入落点，
-     不变量闸门 = 该落点的便宜来源不变式。其强度上限 = 它
-     匹配的文本形态 —— grep 型分不清注释与代码，证明的是
-     「这段文字还在」而不是「代码里真在用」；更强的保证是
-     `calibrate`（对产物量）或 `witness`（对来源量）的活。
-     分层构建里这类不变式很多：输入文件 sha、编译器版本 +
-     旗标、环境变量快照、中间产物架构。）
+  1. **Read only persistent-disk artifacts**; run no services, touch no
+     network. A pre-commit hook must not depend on "something is running".
+  2. **Do not introduce inputs that change by themselves**: no "wall clock"
+     and no HEAD sha inside the machine block -- otherwise `--check` never
+     converges within the same commit. If you need time, use the **commit
+     date**.
+     (issue #4 item 5 continued: **a value that changes is not thereby
+     barred from the ledger; you must first declare how it changes** --
+     quantities that change on every run (random padding lengths, GREASE
+     payloads, timestamp-like values) store **one real sampled
+     measurement**, paired with a `*_stable` stability flag key pair (the
+     consumer side has two tiers: the stable tier is judged verbatim, the
+     unstable tier structurally), or with explicit `replay=False`;
+     **bare storage is forbidden** -- bare storage keeps the replay gate red
+     forever, until the whole gate gets muted with `REFLECT_REPLAY=off`,
+     which is the real unsupervised state.)
+  3. **Say so when you cannot read it**: artifact missing (different machine
+     / disk not mounted) => `unavailable(what, why)`, and let the caller
+     decide whether to warn or skip. **Never invent a number** -- 0 is a
+     number, and it will be cited as a result.
+  4. **Expensive measurements need a cache**: recover the previous
+     measurement from the existing machine block (`prev_values`) and reuse
+     it when the inputs are unchanged. Over there it saved "re-compressing
+     36 MiB on every commit".
+  5. **Inputs need a cheap landing place** (issue #6 item 2): after an
+     artifact is produced, its inputs (source / tool / flags / environment)
+     must have a readable record that **does not depend on re-running**,
+     paired with a **cheap provenance invariant** (`witness`, issue #5)
+     checked at every commit. Otherwise "the artifact did not change but the
+     things that produce it did" is invisible.
+     (`witness` is one instance of this principle; declarative invariants
+     (issue #7, `check_invariants.py`) are another: the invariant file =
+     the input landing place, the invariant gate = that landing place's
+     cheap provenance invariant. Its strength ceiling = the text shape it
+     matches -- a grep-type check cannot tell comments from code and proves
+     "this text is still present", not "the code really uses it"; stronger
+     guarantees are the job of `calibrate` (for artifact quantities) or
+     `witness` (for provenance quantities).
+     Layered builds have many such invariants: input file shas, compiler
+     version + flags, environment variable snapshots, intermediate artifact
+     architectures.)
 
-复跑可判定性（issue #2 ① —— 五条之外的一条硬前提）：`cmd` **不是注释**。
-`zreflect/check_facts_replay.py` 会在仓库根逐字执行它（bash + `pipefail`，所以管道
-不再吞错），stdout 去掉首尾空白后必须**等于**台账值 —— 所以只许打印**裸值**，
-"含该值的整行"人眼可读、机器不可判。要起服务/要构建产物的量法不适用复跑：
-`fact(值, cmd, 出处, replay=False)` 显式退出，留给各仓自己的上层闸门。
-（issue #5：贵事实别落在**永不复查**档 —— 挂便宜见证
-`fact(值, cmd, 出处, replay=False, witness=…, witness_expect=…)`：
-值不逐字复跑，但**来源/上下文**（"产出它的工具/输入就是我以为的
-那个"）每提交真跑、判据同裸值契约。两者必须同给，残缺形状由
-`ledger.fact()` 当场报错。）
+Replay decidability (issue #2 item 1 -- a hard precondition beyond the five
+principles): `cmd` is **not a comment**. `zreflect/check_facts_replay.py`
+executes it verbatim at the repo root (bash + `pipefail`, so pipes no longer
+swallow errors), and its stdout, stripped of leading/trailing whitespace,
+must **equal** the ledger value -- so it may only print a **bare value**; "a
+whole line containing the value" is human-readable but machine-undecidable.
+Measurement methods that need a service or a built artifact are outside
+replay: `fact(value, cmd, source, replay=False)` opts out explicitly, and
+each repo's own higher-level gate takes over.
+(issue #5: expensive facts must not land in the **never-rechecked** tier --
+attach a cheap witness
+`fact(value, cmd, source, replay=False, witness=..., witness_expect=...)`:
+the value is not re-played verbatim, but the **provenance/context** ("the
+tool/inputs that produced it are the ones I think they are") really runs at
+every commit, with the same criterion as the bare-value contract. Both must
+be given together; `ledger.fact()` errors on the spot at the incomplete
+shape.)
 """
 import re
 
-from gate import module_meta, repo                                    # noqa: F401  (re-export 便利)
+from gate import (  # noqa: F401  (re-export convenience)
+    fatal_exit,
+    machine,  # noqa: E402
+    module_meta,
+    repo,
+)
+from i18n import M  # noqa: E402
 
 
 def unavailable(what, why):
-    """「读不到」的诚实形状。调用方（渲染/闸门）必须把它渲染成明说，不许当成 0。
+    """The honest shape of "could not read it". Callers (renderer/gates) must
+    render it as an explicit statement, never treat it as 0.
 
-    `what`（哪样东西没读到）是**公开签名**的一部分：它是这条诚实形状契约的
-    一环 —— 调用方按名字说明「谁读不到」，当前返回体只带 `why`。签名比返回体
-    宽是**有意**的：下游仓按这个签名调用，删参数 = 破坏调用方。
+    `what` (which thing was not read) is part of the **public signature**: it
+    is a link in this honest-shape contract -- the caller names **who** could
+    not be read, while the current return body only carries `why`. The
+    signature being wider than the return body is **intentional**: downstream
+    repos call by this signature; removing the parameter = breaking callers.
     """
     return {"ok": False, "why": why}
 
 
 def parse_prev_values(doc_text, row_pattern, group_names):
-    """从现有机器块里回收上一次的测量值（原则 4 的通用形状）。
+    """Recover the previous measurement from the existing machine block (the
+    general shape of principle 4).
 
-    `row_pattern`：一行的正则，用命名分组 `(?P<名字>…)` 标出要回收的值；
-    `group_names`：要回收的分组名元组。返回 {行首键: {名字: 值}}。
+    `row_pattern`: a line regex, with named groups `(?P<name>...)` marking
+    the values to recover; `group_names`: tuple of group names to recover.
+    Returns {row-lead key: {name: value}}.
 
-    返回的值是**字符串** —— 数字不数字由采集器自己解释（它知道口径）。
-    典型用法：先把上次的 (raw, gz) 拿回来，输入没变就跳过贵的测量。
+    The returned values are **strings** -- whether something is a number is
+    for the collector itself to interpret (it knows the convention). Typical
+    use: fetch the previous (raw, gz) first, then skip the expensive
+    measurement when inputs are unchanged.
     """
     out = {}
     if not doc_text:
@@ -79,13 +119,74 @@ def parse_prev_values(doc_text, row_pattern, group_names):
         for name in group_names:
             try:
                 rec[name] = m.group(name)
-            except IndexError as error:
-                # 未命名分组 = 配置错，必须响，不许静默拿错值。
-                raise SystemExit(
-                    "FATAL: parse_prev_values：行正则里没有命名分组 %r —— "
-                    "回收靠命名分组，别用位置分组（换行序 = 静默拿错值）" % name) from error
+            except IndexError:
+                # An unnamed group = misconfiguration; it must shout, never
+                # silently take the wrong value.
+                fatal_exit(M("collect.regex_missing_group", name=name))
         out[key] = rec
     return out
 
 
-MODULE = module_meta("采集器契约", "measure() 的四条原则 + 帮手（无独立自证）", selftest=False)
+# The real meaning of `selftest=False`: **no `--selftest` entry point** (this
+# module is pure contract + two helpers; bolting on a CLI entry would clash
+# with its role of "being called by facts.measure").
+# **That does not mean no self-verification**: `parse_prev_values` (named-group
+# recovery / a missing group must shout) and `unavailable` (unreadable =
+# ok False, inventing 0 forbidden) both have substantive assertions, living in
+# `registry._cases()`. The description previously said "no independent
+# selftest", which did not match the facts (round 25 alignment).
+MODULE = module_meta(
+    "Collector contract",
+    "the five principles for measure() + helpers (no --selftest entry; "
+    "self-verification lives in this module's `_cases`)",
+    selftest=True)
+
+
+# -- Self-verification (previously hosted in registry._cases) ---------------
+#
+# Criteria belong to the **module under test**: `parse_prev_values` /
+# `unavailable` live here, so their self-verification should live here too.
+# After moving it back, `selftest=True` is an honest declaration.
+
+def _cases():
+    def parse_ok():
+        got = parse_prev_values("| a | 1 |\n| b | 2 |\n",
+                                r"\| (?P<key>\w+) \| (?P<val>\d+) \|",
+                                ("val",))
+        return got == {"a": {"val": "1"}, "b": {"val": "2"}}
+
+    def missing_group_shouts():
+        try:
+            parse_prev_values("| a | 1 |\n",
+                              r"\| (?P<key>\w+) \| (?P<val>\d+) \|",
+                              ("nope",))
+            return False                # no shout = this case is red
+        except SystemExit:
+            return True
+
+    def unavailable_shape():
+        got = unavailable("x", "y")
+        return got.get("ok") is False and "why" in got
+
+    return [
+        ("★ collect.parse_prev_values", parse_ok),
+        ("★ collect.missing_group_shouts", missing_group_shouts),
+        ("collect.unavailable_shape", unavailable_shape),
+    ]
+
+
+def _selftest():
+    import sys  # noqa: PLC0415
+
+    from gate import main_selftest_or  # noqa: PLC0415
+    from i18n import M  # noqa: PLC0415
+    return main_selftest_or(sys.argv[1:], M("gate.title.collect"),
+                            _cases, lambda a: 0)
+
+
+if __name__ == "__main__":
+    import os  # noqa: PLC0415
+    import sys  # noqa: PLC0415
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import collect as _mod  # noqa: PLC0415
+    sys.exit(_mod._selftest())

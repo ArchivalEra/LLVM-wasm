@@ -1,46 +1,51 @@
 #!/usr/bin/env python3
-"""env 文件闸门（**可插拔模块**，issue #8）：守钩子的 REFLECT_* 载体。
+"""env file gate (**pluggable module**, issue #8): guards the hooks' REFLECT_* carrier.
 
-钩子经可拔插件 einfacht-env.sh 加载 Einfacht.env
-（默认名；REFLECT_ENV_FILE 可换）—— 那是 issue #8
-的持久载体：钩子语境里「谁记得 export」不算数。
-本闸门守这份载体的**静默坏法**，全是「部署了 ≠ 在跑」
-家族：
+Hooks load Einfacht.env through the pluggable einfacht-env.sh
+(default name; REFLECT_ENV_FILE can swap it) — that is the
+persistent carrier of issue #8: inside hook context, "whoever
+remembers to export" does not count.
+This gate guards the carrier's **silent rot**, all members of the
+"deployed ≠ running" family:
 
-  · 旋钮名打错一位 ⇒ 被所有程序静默忽略，值永远
-    到不了钩子 —— 最危险的一种：一切照常跑；
-  · 文件旋钮指向不存在的文件 ⇒ 钩子的 [ -f ] 守卫
-    静默跳过，机器块从这一刻起悄悄过期；
-  · 值为空 / 文件里只剩注释 ⇒ 看起来配了、其实
-    什么都没加载；
-  · sh 语法坏 ⇒ 钩子要到提交时刻才响亮地死
-    （set -e），报错还指向不明。
+  · a knob name mistyped by one character ⇒ silently ignored by
+    every program, the value never reaches the hooks — the most
+    dangerous kind: everything keeps running as usual;
+  · a file knob pointing at a missing file ⇒ the hook's [ -f ]
+    guard silently skips, and the machine block quietly goes
+    stale from that moment on;
+  · an empty value / a file with nothing but comments left ⇒
+    looks configured while nothing was ever loaded;
+  · broken sh syntax ⇒ the hook dies loudly only at commit
+    time (set -e), with an error pointing nowhere clear.
 
-**名册是登记式的**（2026-10-07 起，Phase 2）：判据数据
-= `zreflect/knobs.py` 的 REGISTRY（名字 → kind / 默认值 /
-语义），本文件的手写 FILE_KNOBS 名单退役。对账双向：
+**The roster is registration-based** (since 2026-10-07, Phase 2): the
+criteria data = the REGISTRY in `zreflect/knobs.py` (name → kind /
+default / semantics); this file's handwritten FILE_KNOBS list is
+retired. The audit is bidirectional:
 
-  · export 的名字不在登记表 ⇒ typo / 幻影（配了
-    静默无效）；
-  · zreflect/*.py 扫描面里出现、登记表里**没有**的
-    REFLECT_* 记号 ⇒ 幻影旋钮 / typo（docstring 提名
-    不算数，登记才算数 —— REFLECT_AB/REFLECT_PINS
-    幻影事故的 structural 修复）；
-  · 三语 README（REFLECT_READMES 名单）里出现的
-    REFLECT_* 名字 ⊆ 登记（文档侧幻影防御，自证跑）。
+  · an exported name not in the registry ⇒ typo / phantom
+    (configured yet silently inert);
+  · a REFLECT_* token appearing in the zreflect/*.py scan surface
+    that is **not** in the registry ⇒ phantom knob / typo
+    (docstring nominations don't count, registration does — the
+    structural fix for the REFLECT_AB/REFLECT_PINS phantom incident);
+  · REFLECT_* names appearing in the trilingual READMEs (the
+    REFLECT_READMES list) ⊆ registry (doc-side phantom defense,
+    runs in selftest).
 
-可插拔：Einfacht.env 不存在（钩子目录与仓库根都
-没有）⇒ 明说未启用、退 0（钩子回落纯环境变量
-+ 默认名）。
+Pluggable: Einfacht.env absent (neither the hooks directory nor the
+repo root has it) ⇒ state plainly that it is off, return 0 (hooks
+fall back to plain environment variables + the default name).
 
-诚实边界：存在性只查**相对仓库根**的路径；
-core.hooksPath 改过布局的仓库，钩子目录按
-reflect-hooks/ 找（声明式检查的文本形态上限，
-issue #7 同款边界）。
+Honest boundary: existence is only checked for paths **relative to
+the repo root**; in repos whose core.hooksPath relocates the layout,
+the hooks directory is found via reflect-hooks/ (the text-form
+ceiling of declarative checks, same boundary as issue #7).
 
-用法（直接跑，cwd=仓库根）：
+Usage (run directly, cwd=repo root):
     python3 zreflect/check_envfile.py [--selftest]
-退出码：0=绿 / 1=发现问题 / 2=配置或环境坏了。
+Exit codes: 0=green / 1=problems found / 2=configuration or environment broken.
 """
 from __future__ import annotations
 
@@ -50,57 +55,92 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import knobs  # noqa: E402
 from gate import fatal, finish, main_selftest_or, meta, off, repo  # noqa: E402
-import knobs                                              # noqa: E402
-from knobs import REGISTRY                         # noqa: E402
+from i18n import M  # noqa: E402
+from knobs import REGISTRY  # noqa: E402
 
 ENV_FILE = (os.environ.get("REFLECT_ENV_FILE", "Einfacht.env")
             .strip() or "Einfacht.env")
 
 _EXPORT_RE = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$")
-# 显式括号只为把优先级写明白（`^a|b$` 交替本身优先级最低）；行为与
-# `^["\']|["\']$` 逐字相同 —— 只剥首/尾引号，不收中间引号。
+# The explicit parentheses only spell out the precedence (`^a|b$` alternation
+# binds loosest anyway); behavior is character-for-character identical to
+# `^["\']|["\']$` — strips only a leading/trailing quote, keeps inner quotes.
 _QUOTES_RE = re.compile(r'^(?:["\'])|(?:["\'])$')
-# 旋钮记号：REFLECT_ + 大写。**左边界必需** —— 不加时，翻案示例文本
-# （`ZCODE_` 前缀 + 一个记号）会被从中间切成假记号，三语 README 对账
-# 各报一次假阳性（实测踩到）。⚠️ 本注释与自证里都**不写出**那个假记号
-# 字面量 —— 本文件在扫描面内，写出来就会被对账收编（自证用例用拼接构造）。
-_TOKEN_RE = re.compile(r"(?<![A-Za-z0-9_])REFLECT_[A-Z0-9_]+")
+# Knob token: REFLECT_ + uppercase. **The left boundary is required** — without
+# it, the retraction example text (a `ZCODE_` prefix + one token) gets sliced
+# mid-word into a fake token, and each trilingual README audit reports one
+# false positive apiece (hit in practice). ⚠️ Neither this comment nor the
+# selftest ever spells out that fake token.
+
+# The single source of truth for the token regex is knobs._TOKEN_RE
+# (two identical copies existed before; they would drift).
+from knobs import _TOKEN_RE  # noqa: E402  (single source; this file used to keep its own copy)
 
 
 def known_knobs(py_dir=None):
-    """发现式扫描：zreflect/*.py 里出现的 REFLECT_* 记号全集。
+    """Discovery scan: the full set of REFLECT_* tokens appearing in zreflect/*.py.
 
-    对账用（不是名册本身 —— 名册是 knobs.REGISTRY）：扫描面里出现而
-    登记表里没有的记号 = 幻影 / typo，本闸门报。`py_dir` 可注入
-    （自证用假源码树 —— 真文件进了自证，自证就依赖机器了）。
+    Used for auditing (not the roster itself — the roster is knobs.REGISTRY):
+    a token that appears in the scan surface but is missing from the registry
+    = phantom / typo, reported by this gate. `py_dir` is injectable
+    (selftest uses a fake source tree — if real files entered the selftest,
+    the selftest would depend on the machine).
+
+    ⚠️ **The default directory is the checked repo's zreflect** (`repo("zreflect")`),
+    not the tool's own — this gate guards **the checked repo's** carrier, not
+    the tool itself. `knobs._py_sources()` is the shared read loop, but the
+    base is passed explicitly here: the two default directories coincide in
+    production but differ under fixtures (that difference must be kept, not
+    left to coincidence).
     """
     d = py_dir if py_dir is not None else repo("zreflect")
-    knobs = set()
+    found = set()
+    for _name, text in knobs._py_sources(d):
+        found.update(_TOKEN_RE.findall(text))
+    return found
+
+
+def _known_knobs_scans_repo():
+    """`known_knobs()`'s default scan surface must be the **checked repo's** zreflect, not the tool's.
+
+    The criterion tests **behavior**: place a phantom knob in a fixture repo,
+    and `known_knobs()` must see it. The tool's own zreflect lacks that token
+    ⇒ if the default directory drifts to the tool side, this goes red.
+    """
+    import shutil  # noqa: PLC0415
+    import tempfile  # noqa: PLC0415
+    d = tempfile.mkdtemp()
     try:
-        names = sorted(os.listdir(d))
-    except OSError:
-        return knobs
-    for n in names:
-        if not n.endswith(".py"):
-            continue
+        os.makedirs(os.path.join(d, "zreflect"))
+        marker = "REFLECT_" + "PROBEONLY"        # built by concatenation: keeps the scan surface clean
+        with open(os.path.join(d, "zreflect", "probe.py"), "w",
+                  encoding="utf-8") as fh:
+            fh.write("X = os.environ.get('%s')\n" % marker)
+        # ⚠️ `gate.repo()` reads the **module-level `GATE_REPO`** (snapshotted at
+        # import time); mutating `os.environ` has no effect on it (observed:
+        # after changing the env var, known_knobs still scanned the real repo).
+        # The module attribute must be patched directly.
+        import gate  # noqa: PLC0415
+        prev = gate.GATE_REPO
+        gate.GATE_REPO = d
         try:
-            with open(os.path.join(d, n), encoding="utf-8",
-                      errors="replace") as fh:
-                text = fh.read()
-        except OSError:
-            continue
-        knobs.update(_TOKEN_RE.findall(text))
-    return knobs
+            return marker in known_knobs()
+        finally:
+            gate.GATE_REPO = prev
+    finally:
+        shutil.rmtree(d, True)
 
 
 def parse_exports(text):
-    """解析 env 文件的生效 export（纯函数：自证要用）。
+    """Parse the effective exports of an env file (pure function: the selftest needs it).
 
-    返回 {名字: 值}。注释行 / 空行跳过 —— 只剩注释
-    的文件 ⇒ 空 dict（「看起来配了」的静默坏法由
-    调用方报告）。值只做引号剥离，不做变量展开
-    （存在性判据不需要展开后的值）。
+    Returns {name: value}. Comment lines / blank lines are skipped — a
+    file with only comments left ⇒ empty dict (the "looks configured"
+    silent rot is reported by the caller). Values get quote stripping
+    only, no variable expansion (the existence criteria don't need the
+    expanded values).
     """
     out = {}
     for line in text.splitlines():
@@ -112,93 +152,95 @@ def parse_exports(text):
 
 
 def _phantom_token_problems(scanned, registry):
-    """扫描面里出现、登记表里没有的 REFLECT_* 记号（幻影 / typo）。
+    """REFLECT_* tokens that appear in the scan surface but not in the registry (phantom / typo).
 
-    typo 样例必须由调用方拼接构造 —— 本文件在扫描面内，字面量写死
-    会把 typo 收进扫描面，守卫就废了。
+    The typo sample must be constructed by the caller via concatenation —
+    this file is itself inside the scan surface, so a hardcoded literal
+    would sweep the typo into the scan surface and the guard would be dead.
     """
     out = []
     for tok in sorted(scanned):
         if tok not in registry:
-            out.append("记号 `%s` 出现在 zreflect/*.py 里但不在旋钮登记表"
-                       "（zreflect/knobs.py）—— 要么是 typo（会被所有程序"
-                       "静默忽略），要么是幻影旋钮（文档承诺了、代码不读，"
-                       "配了静默无效）。登记才算数" % tok)
+            out.append(M("envfile.unknown_knob", knob=tok))
     return out
 
 
 def _existence_targets(kind, value):
-    """旋钮值 → (要查存在性的路径清单, 是否目录)；None = 该 kind 不查。"""
+    """Knob value → (list of paths to existence-check, is-dir flag); None = this kind isn't checked."""
     if kind == "file":
         return [value], False
     if kind == "list":
         return [t.strip() for t in value.split(",") if t.strip()], False
     if kind == "dir":
         return [value], True
-    return None                         # number / flag / value 不查存在性
+    return None                         # number / flag / value get no existence check
 
 
 def _export_problems(name, value, registry, file_exists, dir_exists):
-    """单个 export 的判据：空值 / 未登记 / 指向缺失（顺序即报告顺序）。"""
+    """Criteria for a single export: empty value / unregistered / missing target (order = report order)."""
     if not value:
-        return ["`%s` 的值是空的 —— 空值会让钩子的"
-                " [ -f ] 守卫静默跳过（空不是通过）" % name]
+        return [M("envfile.empty_value", key=name)]
     kind = registry.get(name, (None,))[0]
     if kind is None:
-        return ["旋钮名 `%s` 不在登记表（zreflect/knobs.py）—— 打错"
-                "一位会被所有程序静默忽略，值永远到不了钩子" % name]
+        return [M("envfile.unregistered_knob", key=name)]
     targets = _existence_targets(kind, value)
     if targets is None:
         return []
     paths, is_dir = targets
+    # "file / dir" is a grammar noun, not a knob value: split into two codes so
+    # no Chinese constant appears in a template (zero-language core); the knob
+    # name and the path still travel as parameters.
+    #
+    # ⚠️ **Each of the two codes gets its own `M(...)` call**: written as
+    # `M("a" if is_dir else "b")`, the `knobs.used_codes()` regex only catches
+    # the first ⇒ the other doesn't exist in front of `pack_coverage`. The
+    # language pack lacks it, the user sees a bare code, and the audit stays
+    # green anyway (observed: this very case is what the newly added
+    # `i18n_cover.code_not_literal` caught).
     out = []
     for t in paths:
         hit = dir_exists(t) if is_dir else file_exists(t)
         if not hit:
-            out.append("旋钮 `%s`（%s）指向的%s不存在：%s"
-                       " —— 钩子的 [ -f ] 守卫会静默跳过"
-                       "（路径相对仓库根）"
-                       % (name, registry.get(name, ("", "", "?"))[2],
-                          "目录" if is_dir else "文件", t))
+            entry = registry.get(name, ("", "", "?"))[2]
+            out.append(M("envfile.dir_missing", key=name, entry=entry, target=t)
+                       if is_dir else
+                       M("envfile.file_missing", key=name, entry=entry, target=t))
     return out
 
 
 def _syntax_problems(syntax_ok):
-    """sh -n 结论 → 问题：False = 文件语法坏；None = 仪器本身坏了。"""
+    """sh -n verdict → problems: False = file syntax broken; None = the instrument itself broke."""
     if syntax_ok is False:
-        return ["%s 过不了 sh -n（语法坏）⇒ 钩子要到提交"
-                "时刻才响亮地死，且报错指向不明" % ENV_FILE]
+        return [M("envfile.syntax_broken", name=ENV_FILE)]
     if syntax_ok is None:
-        return ["sh -n 跑不了（sh 不在？）—— 语法检查这个"
-                "仪器本身坏了，先修检查器，不许静默跳过"]
+        return [M("envfile.syntax_tool_broken")]
     return []
 
 
 def problems(exports, registry, file_exists, dir_exists, syntax_ok=None,
              scanned=()):
-    """纯函数：返回问题清单（空 = 绿）。自证期间不许 print。
+    """Pure function: returns the problem list (empty = green). No printing allowed during selftest.
 
-    `registry` = knobs.REGISTRY（名字 → (kind, 默认, 语义)）；
-    `scanned` = known_knobs() 的扫描面（对账幻影 / typo）；
-    `file_exists` / `dir_exists` = 存在性探针（自证注入假文件系统）；
-    `syntax_ok` = sh -n 的结论（True / False；None = 仪器本身跑不了）。
+    `registry` = knobs.REGISTRY (name → (kind, default, semantics));
+    `scanned` = the scan surface of known_knobs() (audits phantom / typo);
+    `file_exists` / `dir_exists` = existence probes (selftest injects a fake
+    filesystem);
+    `syntax_ok` = the sh -n verdict (True / False; None = the instrument itself can't run).
     """
     if not exports:
-        return ["%s 里没有任何生效的 export（空文件或只剩注释）"
-                " —— 看起来配了、其实什么都没加载"
-                "（「部署了 ≠ 在跑」家族）" % ENV_FILE]
-    # 幻影 / typo 对账（扫描面）+ 每个 export 的载体判据 + sh 语法。
+        return [M("envfile.no_effective_export", name=ENV_FILE)]
+    # Phantom / typo audit (scan surface) + per-export carrier criteria + sh syntax.
     out = _phantom_token_problems(scanned, registry)
     for name in sorted(exports):
         if not name.startswith("REFLECT_"):
-            continue                    # 非旋钮 export 不是本闸门的活
+            continue                    # non-knob exports are not this gate's business
         out += _export_problems(name, exports[name], registry,
                                 file_exists, dir_exists)
     return out + _syntax_problems(syntax_ok)
 
 
 def _find_env_file():
-    """插件同款的解析顺序：钩子目录优先、仓库根次之。"""
+    """Same resolution order as the plugin: hooks directory first, repo root second."""
     for d in (repo("reflect-hooks"), repo()):
         p = os.path.join(d, ENV_FILE)
         if os.path.exists(p):
@@ -210,28 +252,23 @@ def run(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     p = _find_env_file()
     if p is None:
-        # ⚠️ C3：off 早返回**只跳过载体检查** —— 名册自洽性（幻影旋钮 /
-        # README 幻影）与载体是否存在无关，已搬到 knobs.py 并由
-        # registry.problems() 收口（此前它焊在这里之后，本仓没有
-        # Einfacht.env ⇒ 从未执行，实测踩到）。
-        return off("env 文件闸门：%s 不存在（钩子目录与仓库根都没有）"
-                   " ⇒ 本闸门未启用（可插拔模块；钩子回落纯环境变量"
-                   " + 默认名。要启用：cp reflect-hooks/"
-                   "Einfacht.env.example reflect-hooks/%s）"
-                   "。注：名册自洽性（幻影旋钮）不随本闸门关闭 —— 见 "
-                   "registry.problems() / knobs.py" % (ENV_FILE, ENV_FILE))
+        # ⚠️ C3: the off early-return **only skips the carrier checks** — roster
+        # self-consistency (phantom knobs / README phantoms) has nothing to do
+        # with whether the carrier exists; it moved to knobs.py and is funneled
+        # through registry.problems() (while it was welded here, this repo had
+        # no Einfacht.env ⇒ it never executed; hit in practice).
+        return off(M("envfile.off", name=ENV_FILE))
     try:
         with open(p, encoding="utf-8", errors="replace") as fh:
             text = fh.read()
     except OSError as e:
-        return fatal("%s 读不了：%s" % (p, e))
+        return fatal(M("envfile.unreadable", path=p, error=e))
     scanned = known_knobs()
     if not scanned:
-        return fatal("在 %s 里没发现任何 REFLECT_* 记号 —— 对账扫描"
-                     "失败（zreflect/ 不在？），本闸门的仪器坏了"
-                     % repo("zreflect"))
-    # 语法检查（仪器）：sh -n 只解析不执行。语法错 ⇒ 是要报
-    # 的问题；跑不了 ⇒ 仪器坏了（syntax_ok=None，如实报）。
+        return fatal(M("envfile.scan_empty", path=repo("zreflect")))
+    # Syntax check (instrument): sh -n parses only, never executes. A syntax
+    # error ⇒ a problem to report; can't run at all ⇒ the instrument broke
+    # (syntax_ok=None, reported as such).
     syntax = None
     try:
         r = subprocess.run(["sh", "-n", p], capture_output=True)
@@ -239,19 +276,23 @@ def run(argv=None):
     except OSError:
         syntax = None
     exports = parse_exports(text)
-    # 载体内的判据：export 名 typo / 文件旋钮指向缺失 / 空值 / sh 语法。
-    # 幻影旋钮与 README 幻影已归 knobs.py（与载体无关）。
+    # Criteria inside the carrier: export-name typo / file knob pointing at a
+    # missing target / empty value / sh syntax.
+    # (README phantoms and the "tool-repo scan surface" phantoms belong to
+    # knobs.py; this gate's scan covers the **checked repo's** zreflect/ —
+    # only it can see typos in the downstream repo's own code, a scan surface
+    # distinct from knobs'; both copies stay.)
     probs = problems(exports, REGISTRY,
                      lambda t: os.path.exists(repo(t)),
                      lambda t: os.path.isdir(repo(t)),
                      syntax_ok=syntax, scanned=scanned)
-    return finish("env 文件闸门", probs,
-                  "env 文件闸门：OK（%s：%d 条生效 export，名字全在登记表、"
-                  "文件旋钮指向都在）"
-                  % (os.path.relpath(p, repo()), len(exports)))
+    return finish(M("envfile.title"), probs,
+                  M("envfile.ok", path=os.path.relpath(p, repo()),
+                    count=len(exports)))
 
 
-def _cases():
+def _cases_fixture():
+    """Fixture (the setup section of the original `_cases`, moved over verbatim)."""
     good_files = ("STATE.md", "README.md", "README.zh.md",
                   "README.de.md", "FACTS.json", "AGENTS.md",
                   "RETRACT.json", "invariants.json")
@@ -264,83 +305,133 @@ def _cases():
                 "REFLECT_READMES": "README.md,README.zh.md,README.de.md",
                 "REFLECT_QUESTIONS": "questions",
                 "REFLECT_NAKED_MIN": "100"}
-    # typo 样例用拼接构造：本文件在扫描面里，会被 known_knobs() 扫到 ——
-    # 字面量写死会把 typo 收进扫描面，守卫就废了。
+    # The typo sample is built by concatenation: this file is inside the scan
+    # surface and gets scanned by known_knobs() — a hardcoded literal would
+    # sweep the typo into the scan surface and the guard would be dead.
     typo = "REFLECT_" + "DOCSS"
+    return {'good_files': good_files, 'fe': fe, 'de': de, 'registry': registry, 'good_env': good_env, 'typo': typo}
+
+
+def _cases_knobs(fx):
+    """See `_cases()`: this group has 7 cases."""
+    fe, de, registry, good_env, typo = fx["fe"], fx["de"], fx["registry"], fx["good_env"], fx["typo"]
     return [
-        # ① 正常不报
-        ("生效 export 全合法（含数字旋钮）⇒ 不报",
-         lambda: problems(good_env, registry, fe, de, syntax_ok=True,
-                          scanned=registry.keys()) == []),
-        ("非 REFLECT_ 前缀的 export ⇒ 不报（不是本闸门的活）",
-         lambda: problems({"PATH": "/usr/bin"}, registry, fe, de,
-                          syntax_ok=True, scanned=registry.keys()) == []),
-        ("扫描面对账干净（全在登记表）⇒ 不报",
-         lambda: problems(good_env, registry, fe, de, syntax_ok=True,
-                          scanned=set(registry) | {"REFLECT_FACTS"}) == []),
-        ("三语 README 的旋钮提名 ⊆ 登记 ⇒ 不报（判据归 knobs）",
-         lambda: knobs.readme_problems(files={
-             "README.md": "用 REFLECT_DOC 与 REFLECT_READMES。",
-             "README.zh.md": "x", "README.de.md": "x"}) == []),
-        # ② 该报的必须报
-        ("★ 扫描面出现未登记记号 ⇒ 必须报（幻影 / typo，登记才算数）",
-         lambda: any("不在旋钮登记表" in x for x in problems(
-             good_env, registry, fe, de, syntax_ok=True,
-             scanned=set(registry) | {typo}))),
-        ("★ 旋钮名打错一位 ⇒ 必须报（静默忽略家族）",
-         lambda: any("不在登记表" in x for x in problems(
-             {typo: "STATE.md"}, registry, fe, de, syntax_ok=True,
-             scanned=registry.keys()))),
-        ("★ 文件旋钮指向缺失文件 ⇒ 必须报（[ -f ] 静默跳过家族）",
-         lambda: any("不存在" in x and "REFLECT_DOC" in x for x in problems(
-             {"REFLECT_DOC": "MYSTATE.md"}, registry, fe, de,
-             syntax_ok=True, scanned=registry.keys()))),
-        ("★ 清单旋钮有一份缺失 ⇒ 必须报（点名缺失的那份）",
-         lambda: any("README.missing.md" in x for x in problems(
-             {"REFLECT_READMES": "README.md,README.missing.md"},
-             registry, fe, de, syntax_ok=True, scanned=registry.keys()))),
-        ("★ 目录旋钮指向文件 ⇒ 必须报（目录探针不命中）",
-         lambda: any("目录" in x for x in problems(
-             {"REFLECT_QUESTIONS": "STATE.md"}, registry, fe, de,
-             syntax_ok=True, scanned=registry.keys()))),
-        ("★ 值为空 ⇒ 必须报（空值让守卫静默跳过）",
-         lambda: any("值是空的" in x for x in problems(
-             {"REFLECT_DOC": ""}, registry, fe, de, syntax_ok=True,
-             scanned=registry.keys()))),
-        ("★ sh -n 不过 ⇒ 必须报",
-         lambda: any("sh -n" in x for x in problems(
-             good_env, registry, fe, de, syntax_ok=False,
-             scanned=registry.keys()))),
-        ("★ sh -n 跑不了 ⇒ 必须报（仪器坏了不许静默跳过）",
-         lambda: any("跑不了" in x for x in problems(
-             good_env, registry, fe, de, syntax_ok=None,
-             scanned=registry.keys()))),
-        # ③ 空输入必须报
-        ("★ 空 export 集（空文件 / 只剩注释）⇒ 必须报",
-         lambda: problems({}, registry, fe, de, syntax_ok=True,
-                          scanned=registry.keys()) != []),
-        # 边界（判据归 knobs.py；此处保留一条串联证明搬运没丢语义）：
-        # 假记号不许从别的前缀里切出来（翻案示例文本曾被切成假旋钮名）。
-        # ⚠️ 样例用拼接构造：本文件在扫描面内，字面量写出来会被对账收编。
-        ("★ 前缀词里的记号不许被切出假旋钮名",
-         lambda: knobs.readme_problems(files={
-             "README.md": "> ZCODE_" + typo + " 这条是已翻案的示例。",
-             "README.zh.md": "x", "README.de.md": "x"}) == []),
-        # 引号剥离（_QUOTES_RE 的显式优先级只为写明白，行为逐字不变）：
-        # 复跑：python3 zreflect/check_envfile.py --selftest
-        ("首尾引号被剥（\"hello\" ⇒ hello）",
-         lambda: parse_exports("D=\"hello\"")["D"] == "hello"
-         and parse_exports("D='hello'")["D"] == "hello"),
-        ("★ 中间引号不许被剥（a\"b ⇒ a\"b；只剥首尾）",
-         lambda: parse_exports("D=a\"b")["D"] == "a\"b"
-         and parse_exports("D='a\"b'")["D"] == "a\"b"),
+    # (1) healthy input reports nothing
+    ("envfile.ok",
+     lambda: problems(good_env, registry, fe, de, syntax_ok=True,
+                      scanned=registry.keys()) == []),
+    ("envfile.scan_clean",
+     lambda: problems(good_env, registry, fe, de, syntax_ok=True,
+                      scanned=set(registry) | {"REFLECT_FACTS"}) == []),
+    ("envfile.readme_nominations_registered",
+     lambda: knobs.readme_problems(files={
+         "README.md": "REFLECT_DOC REFLECT_READMES",
+         "README.zh.md": "x", "README.de.md": "x"}) == []),
+    # (2) what should be reported must be reported
+    ("★ envfile.unknown_knob",
+     lambda: any(getattr(p,"code","") == "envfile.unknown_knob" for p in problems(
+         good_env, registry, fe, de, syntax_ok=True,
+         scanned=set(registry) | {typo}))),
+    ("★ envfile.unregistered_knob",
+     lambda: any(getattr(p,"code","") == "envfile.unregistered_knob" for p in problems(
+         {typo: "STATE.md"}, registry, fe, de, syntax_ok=True,
+         scanned=registry.keys()))),
+    ("★ envfile.file_missing.list_target",
+     lambda: any(getattr(p,"code","") == "envfile.file_missing" and p.params.get("target") == "README.missing.md" for p in problems(
+         {"REFLECT_READMES": "README.md,README.missing.md"},
+         registry, fe, de, syntax_ok=True, scanned=registry.keys()))),
+    # ⚠️ There used to be an "audit" case asserting `repo("zreflect") == knobs._zdir()` —
+    # **that was wrong**: it only asserted a configuration fact (GATE_REPO wasn't
+    # overridden) and had **nothing to do** with where `known_knobs` actually scans.
+    # Observed: after changing known_knobs' default directory to `knobs._zdir()`
+    # (a real drift), that assertion stayed green. A criterion must test the
+    # **code path**, not a coincidence.
+    # Replaced by the case below: the default directory must point at the
+    # checked repo (under the fixture it really goes red).
+    ("★ envfile.known_knobs_scans_checked_repo",
+     lambda: _known_knobs_scans_repo()),
     ]
 
 
-GATE = meta("env 文件闸门", "守钩子的 REFLECT_* 载体（旋钮 typo / 指向缺失 / 空值）",
-            knobs=("REFLECT_ENV_FILE",))
+def _cases_carrier(fx):
+    """See `_cases()`: this group has 8 cases."""
+    fe, de, registry, typo = fx["fe"], fx["de"], fx["registry"], fx["typo"]
+    return [
+    ("envfile.non_reflect_export",
+     lambda: problems({"PATH": "/usr/bin"}, registry, fe, de,
+                      syntax_ok=True, scanned=registry.keys()) == []),
+    ("★ envfile.file_missing",
+     lambda: any(getattr(p,"code","") == "envfile.file_missing" for p in problems(
+         {"REFLECT_DOC": "MYSTATE.md"}, registry, fe, de,
+         syntax_ok=True, scanned=registry.keys()))),
+    ("★ envfile.dir_missing",
+     lambda: any(getattr(p,"code","") == "envfile.dir_missing" for p in problems(
+         {"REFLECT_QUESTIONS": "STATE.md"}, registry, fe, de,
+         syntax_ok=True, scanned=registry.keys()))),
+    ("★ envfile.empty_value",
+     lambda: any(getattr(p,"code","") == "envfile.empty_value" for p in problems(
+         {"REFLECT_DOC": ""}, registry, fe, de, syntax_ok=True,
+         scanned=registry.keys()))),
+    # (3) empty input must be reported
+    ("★ envfile.no_effective_export",
+     lambda: problems({}, registry, fe, de, syntax_ok=True,
+                      scanned=registry.keys()) != []),
+    # Edge case (the criterion itself lives in knobs.py; one case is kept here as
+    # a chained proof that the move lost no semantics):
+    # a fake token must not be sliced out of a foreign prefix (the retraction
+    # example text once got sliced into a fake knob name).
+    # ⚠️ The sample is built by concatenation: this file is inside the scan
+    # surface; a literal written out would get absorbed by the audit.
+    ("★ envfile.prefix_word_not_sliced",
+     lambda: knobs.readme_problems(files={
+         "README.md": "> ZCODE_" + typo,
+         "README.zh.md": "x", "README.de.md": "x"}) == []),
+    # Quote stripping (the explicit precedence of _QUOTES_RE only spells things
+    # out; behavior is character-for-character unchanged):
+    # replay: python3 zreflect/check_envfile.py --selftest
+    ("envfile.strip_quotes",
+     lambda: parse_exports("D=\"hello\"")["D"] == "hello"
+     and parse_exports("D='hello'")["D"] == "hello"),
+    ("★ envfile.inner_quotes_kept",
+     lambda: parse_exports("D=a\"b")["D"] == "a\"b"
+     and parse_exports("D='a\"b'")["D"] == "a\"b"),
+    ]
+
+
+def _cases_syntax(fx):
+    """See `_cases()`: this group has 2 cases."""
+    fe, de, registry, good_env = fx["fe"], fx["de"], fx["registry"], fx["good_env"]
+    return [
+    ("★ envfile.syntax_broken",
+     lambda: any(getattr(p,"code","") == "envfile.syntax_broken" for p in problems(
+         good_env, registry, fe, de, syntax_ok=False,
+         scanned=registry.keys()))),
+    ("★ envfile.syntax_tool_broken",
+     lambda: any(getattr(p,"code","") == "envfile.syntax_tool_broken" for p in problems(
+         good_env, registry, fe, de, syntax_ok=None,
+         scanned=registry.keys()))),
+    ]
+
+
+def _cases():
+    """Assemble the 3 groups of fixture assertions. **Assemble only** — the criteria live in the group functions."""
+    fx = _cases_fixture()
+    return (
+    _cases_knobs(fx)
+    + _cases_carrier(fx)
+    + _cases_syntax(fx)
+    )
+
+
+GATE = meta("env-file gate",
+            "guards the hooks' REFLECT_* carrier (knob typos / dangling "
+            "targets / empty values)",
+            knobs=("REFLECT_ENV_FILE",),
+            off_reason="a repo without an env carrier (all knobs at their "
+                       "defaults) does not need it: spec not configured "
+                       "⇒ state it is off")
 
 if __name__ == "__main__":
     sys.exit(main_selftest_or(sys.argv[1:],
-                              "env 文件闸门（可插拔：守钩子的 REFLECT_* 载体）",
+                              M("gate.title.envfile"),
                               _cases(), run))

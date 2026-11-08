@@ -18,6 +18,11 @@
 
 用法：python3 zreflect/check_vendored_sync.py [--selftest]
 退出码：0=绿 / 1=漂移或上游不可达 / 2=pin 或判据文件缺失（配置坏）。
+
+PINNED: 本闸门是**本仓自有**（不在上游 vendored 面，VENDORED.json 的 local
+PINNED: 清单点名），输出中文是刻意的：本仓是单语仓（REFLECT_READMES 只有一份
+PINNED: README.md），这套文案与 STATE/README 的中文正文同语言、同读者，搬进
+PINNED: 语言包只会多一份要同步的拷贝 —— 单语仓不配 REFLECT_LANG，码表永不装载。
 """
 import os
 import subprocess
@@ -25,7 +30,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from gate import GATE_REPO, fatal, finish, main_selftest_or, meta, off  # noqa: E402
+import gate  # noqa: E402
+from gate import fatal, finish, main_selftest_or, meta, off  # noqa: E402
 
 PIN_NAME = "zreflect/VENDORED.json"
 CHECKER_NAME = "release/check-vendored-sync.mjs"
@@ -42,8 +48,11 @@ def problems(pin_name=PIN_NAME, checker_name=CHECKER_NAME, root=None):
         被误判成「闸门把名字写死在代码里」）。
       · **pin 在、判据脚本不在** ⇒ 真配置坏（我们自己弄丢了解析器）。
     pin 在而远端对账失败 ⇒ 真问题（副本漂了）。
+
+    PINNED: 本函数体内的中文是闸门的问题文案与自证标签 —— 本仓自有、单语仓
+    PINNED: （README 只有一份中文），不进语言包（理由见模块 docstring）。
     """
-    root = root or GATE_REPO
+    root = root or gate.GATE_REPO
     pin = os.path.join(root, pin_name)
     checker = os.path.join(root, checker_name)
     if not os.path.exists(pin):
@@ -52,7 +61,8 @@ def problems(pin_name=PIN_NAME, checker_name=CHECKER_NAME, root=None):
         return ["FATAL: %s 不存在 —— 判据本身丢了" % checker_name]
     try:
         r = subprocess.run(["node", checker], capture_output=True, text=True,
-                           cwd=root, timeout=180)
+                           cwd=root, timeout=180, encoding="utf-8",
+                           errors="replace")
     except (OSError, subprocess.SubprocessError) as e:
         return ["FATAL: 跑不了 node 判据（%r）" % (e,)]
     if r.returncode == 0:
@@ -65,6 +75,10 @@ def problems(pin_name=PIN_NAME, checker_name=CHECKER_NAME, root=None):
 
 
 def main(argv):
+    """rc 转译：OFF/FATAL/问题清单 → 各自的收尾。
+
+    PINNED: 输出文案是本仓自有闸门的单语中文（理由见模块 docstring）。
+    """
     probs = problems()
     if probs == ["OFF"]:
         return off("本仓没有 %s（不是 vendored 本仓）—— 未查，不是通过" % PIN_NAME)
@@ -78,6 +92,8 @@ def _cases():
 
     远端对账不塞进自证（网络 + 分钟级）；它的判据在 node 侧双证过
     （改动一个文件 ⇒ FAIL，恢复 ⇒ ALL PASS，见 commit 记录）。
+
+    PINNED: 自证标签是本仓自有闸门的单语中文（理由见模块 docstring）。
     """
     return [
         ("OFF：没有 pin ⇒ 明说不适用（不是红，也不是静默绿）",
@@ -92,8 +108,11 @@ def _cases():
 
 GATE = meta("vendored 同步闸门",
             "zreflect/ 必须仍是上游 Einfacht 的字节（VENDORED.json 的 pin）",
-            knobs=())
+            knobs=(),
+            off_reason="repos that are not a vendored Einfacht copy have no pin: VENDORED.json absent => explicitly not applicable")
+
+# PINNED: 自证标题是本仓自有闸门的单语中文（理由见模块 docstring）。
+_TITLE = "check_vendored_sync（vendored 同步）"
 
 if __name__ == "__main__":
-    sys.exit(main_selftest_or(sys.argv[1:], "check_vendored_sync（vendored 同步）",
-                              _cases, main))
+    sys.exit(main_selftest_or(sys.argv[1:], _TITLE, _cases, main))

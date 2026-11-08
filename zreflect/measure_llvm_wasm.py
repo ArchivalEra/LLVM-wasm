@@ -12,36 +12,49 @@ PASS 数、产物字节、见证指纹……每条带复跑命令 + 出处。
 必然漂）。
 
 ⚠️ 本模块**自包含**：不 import build/ 下的 gate.py（命名会撞）。
+
+PINNED: 本模块的中文全是**台账数据**（fact() 的 note/cmd/source、测量名、
+PINNED: 复跑命令里的说明）——它们进 `FACTS.json` 的 note/cmd 字段、被
+PINNED: `facts.py --render-doc` 原样写进机器块，是**数据不是用户消息**，与
+PINNED: check_questions.py「领域词不进语言包」同一裁定。翻成英文反而让台账
+PINNED: 与 STATE 的中文正文脱节。函数体 measure() 的 docstring 有同款声明
+PINNED: （双层，防改名丢声明）。模块级声明覆盖全文件。
 """
-import glob
-import json
 import os
 import re
 import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from gate import GATE_REPO, module_meta, repo   # noqa: E402
-from ledger import fact                         # noqa: E402
+from gate import module_meta, repo  # noqa: E402
+from ledger import fact  # noqa: E402
 
 # C5：本仓数据层也必须在平台名册里声明自己，否则 registry 报 undeclared。
 # selftest=False：它是**数据**（量什么、怎么量），机制的自证在上游那批。
 MODULE = module_meta("本仓数据层", "量本仓的产物/验收/见证（数据 vs 机制分离）",
                      selftest=False)
 
-EMSDK = repo("toolchain/emsdk")
+# 仓库根从本文件位置自算（zreflect/ 的上一级），**不是** gate.GATE_REPO：
+# 快照闸门（check_snapshots）的判据是「import 时刻把别人可能被改写的全局量
+# 复制进本模块常量 = 冻结快照」（GATE_REPO 会被自证改写）。这里没有
+# 「跨仓夹具」场景 —— 数据层量的永远是本仓 —— 自算比每次读属性更直接，
+# 也让本文件不依赖 gate 的任何可变量。
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+EMSDK = os.path.join(REPO, "toolchain/emsdk")
 EMCC = os.path.join(EMSDK, "upstream/emscripten/emcc")
 CLANG = os.path.join(EMSDK, "upstream/bin/clang")
 WASM_LD = os.path.join(EMSDK, "upstream/bin/wasm-ld")
-EV = repo("m0/evidence")
-EV1 = repo("m1/evidence")   # M1 的证据日志（同一套 ARTIFACT 约定）
+EV = os.path.join(REPO, "m0/evidence")
+EV1 = os.path.join(REPO, "m1/evidence")   # M1 的证据日志（同一套 ARTIFACT 约定）
 
 
 def _run(cmd, cwd=None):
     """跑一条命令，返回去空白的 stdout；失败返回 None（量不到就明说）。"""
     try:
         r = subprocess.run(cmd, shell=True, capture_output=True, text=True,
-                           timeout=60, cwd=cwd or GATE_REPO)
+                           timeout=60, cwd=cwd or REPO,
+                           encoding="utf-8", errors="replace")
     except (OSError, subprocess.SubprocessError):
         return None
     return r.stdout.strip() if r.returncode == 0 else None
@@ -103,13 +116,13 @@ def _hash_globs(patterns):
     a second producer and drifts (measured: the m1 tuple lacked exp-firstload.sh
     while the cmd's glob included it).
     """
-    import glob as _g                                       # noqa: PLC0415
-    import hashlib                                          # noqa: PLC0415
+    import glob as _g  # noqa: PLC0415
+    import hashlib  # noqa: PLC0415
     h = hashlib.sha256()
     for pat in patterns:
-        for rel in sorted(os.path.relpath(p, GATE_REPO)
-                          for p in _g.glob(os.path.join(GATE_REPO, pat))):
-            with open(os.path.join(GATE_REPO, rel), "rb") as fh:
+        for rel in sorted(os.path.relpath(p, REPO)
+                          for p in _g.glob(os.path.join(REPO, pat))):
+            with open(os.path.join(REPO, rel), "rb") as fh:
                 h.update(fh.read())
     return h.hexdigest()[:16]
 
@@ -128,7 +141,7 @@ def _driver_inputs():
 # which derives from disk (same principle, Python side).
 def _glob(pattern):
     d = repo(".")
-    import glob as _g                                              # noqa: PLC0415
+    import glob as _g  # noqa: PLC0415
     hits = sorted(os.path.relpath(p, d) for p in _g.glob(os.path.join(d, pattern)))
     return tuple(hits)
 
@@ -141,8 +154,8 @@ def package_inputs_cmd():
 
 def package_inputs_fingerprint():
     """打包脚本的指纹 —— sysroot tar 体积数字的便宜见证。"""
-    import hashlib                                          # noqa: PLC0415
-    p = os.path.join(GATE_REPO, "package/package-sysroot.sh")
+    import hashlib  # noqa: PLC0415
+    p = os.path.join(REPO, "package/package-sysroot.sh")
     if not os.path.exists(p):
         return "no-script"
     with open(p, "rb") as fh:
@@ -153,33 +166,19 @@ def driver_inputs_cmd():
     return "cat driver/*.mjs | sha256sum | cut -c1-16"
 
 
-BROWSER_LOG = repo("browser/evidence/browser.log")
-LOOP_LOG = repo("browser/evidence/loop.log")
-RELEASE_LOG = repo("release/evidence/check-release.log")
-W64_LOG = repo("release/evidence/wasm64-e2e.log")
-CL_LOG = repo("release/evidence/check-content-list.log")
-MAKE_LOG = repo("release/evidence/make-release.log")
-SEAM_LOG = repo("driver/evidence/check-compile-seam.log")
-ZTII_LOG = repo("driver/evidence/check-ztii-regression.log")
-PUB_LOG = repo("release/evidence/check-published.log")
-SPLIT_LOG = repo("release/evidence/make-split-release.log")
-
-BROWSER_INPUTS = ("browser/worker.mjs", "browser/index.html", "browser/check-browser.mjs")
-
-
-def browser_inputs_cmd():
-    return "cat browser/*.mjs browser/*.html | sha256sum | cut -c1-16"
-
-
-def browser_inputs_fingerprint():
-    """浏览器 harness 的指纹 —— 浏览器验收数字的便宜见证。"""
-    return _hash_globs(["browser/worker.mjs", "browser/index.html", "browser/check-*.mjs"])
-
+BROWSER_LOG = os.path.join(REPO, "browser/evidence/browser.log")
+LOOP_LOG = os.path.join(REPO, "browser/evidence/loop.log")
+RELEASE_LOG = os.path.join(REPO, "release/evidence/check-release.log")
+W64_LOG = os.path.join(REPO, "release/evidence/wasm64-e2e.log")
+CL_LOG = os.path.join(REPO, "release/evidence/check-content-list.log")
+MAKE_LOG = os.path.join(REPO, "release/evidence/make-release.log")
+SEAM_LOG = os.path.join(REPO, "driver/evidence/check-compile-seam.log")
+ZTII_LOG = os.path.join(REPO, "driver/evidence/check-ztii-regression.log")
+PUB_LOG = os.path.join(REPO, "release/evidence/check-published.log")
+SPLIT_LOG = os.path.join(REPO, "release/evidence/make-split-release.log")
 
 def driver_inputs_fingerprint():
     """薄驱动源码的指纹 —— 驱动验收数字的便宜见证。"""
-    import hashlib                                          # noqa: PLC0415
-    h = hashlib.sha256()
     return _hash_globs(["driver/*.mjs"])
 
 
@@ -189,8 +188,8 @@ def oct_census_fingerprint():
     输入（那批 .oct 的逐文件扫描结果）不变 ⇒ 普查结论仍成立；
     文件一改，见证立刻红。
     """
-    import hashlib                                          # noqa: PLC0415
-    p = os.path.join(GATE_REPO, "m0/evidence/oct-eh-perfile.txt")
+    import hashlib  # noqa: PLC0415
+    p = os.path.join(REPO, "m0/evidence/oct-eh-perfile.txt")
     if not os.path.exists(p):
         return "no-census"
     with open(p, "rb") as fh:
@@ -249,6 +248,26 @@ def measure():
     `gates-selftest.sh` 的跨仓库夹具文档就引用 `[[py_files]]` / `[[md_files]]`，
     删掉它们夹具会红（实测踩到：「引用不存在的键」）。这也合本仓的意：
     仓库结构事实便宜、永远可复跑，是台账的基座。
+
+    PINNED: 本函数体内全部中文字符串都是**台账数据**（fact() 的 note/cmd 参数、
+    PINNED: 测量名）—— 它们进 FACTS.json、被 --render-doc 原样写进机器块，是
+    PINNED: **数据不是用户消息**（AST 分不清消息与数据，这里以声明面说清）。
+    PINNED: 模块 docstring 也有同款声明（双层，防本函数被改名后声明丢失）。
+    """
+    facts = {}
+    facts.update(_cheap_struct())
+    facts.update(_m0_facts())
+    facts.update(_m1_facts())
+    facts.update(_m2_facts())
+    facts.update(_m3_and_census())
+    facts.update(_toolchain_and_ledger())
+    return facts
+
+
+def _cheap_struct():
+    """仓库结构四条（连表，永远可复跑；gates-selftest 夹具引用这四个键名）。
+
+    PINNED: 本函数体内的中文全是台账数据（fact 的 note/cmd），不是用户消息。
     """
     facts = {}
 
@@ -256,7 +275,7 @@ def measure():
     n_py = 0
     n_md = 0
     lines_py = 0
-    for root, dirs, files in os.walk(GATE_REPO):
+    for root, dirs, files in os.walk(REPO):
         if "/.git" in root:
             continue
         # 第三方树不计数（toolchain/ = emsdk，自带上千个 .py）：
@@ -273,18 +292,19 @@ def measure():
                     pass                      # 数不出来的文件不计数 —— 宁缺勿假
             elif f.endswith(".md"):
                 n_md += 1
-    EXCL = "-not -path './.git/*' -not -path './toolchain/*'"
-    facts["py_files"] = fact(n_py, "find . -name '*.py' %s | wc -l" % EXCL, "repo",
+    excl = "-not -path './.git/*' -not -path './toolchain/*'"
+    facts["py_files"] = fact(n_py, "find . -name '*.py' %s | wc -l" % excl, "repo",
                              "不含 toolchain/（emsdk 自带大量 .py，装了才算数 ⇒ 会自己变）")
-    facts["md_files"] = fact(n_md, "find . -name '*.md' %s | wc -l" % EXCL, "repo")
+    facts["md_files"] = fact(n_md, "find . -name '*.md' %s | wc -l" % excl, "repo")
     facts["py_lines"] = fact(lines_py, "find . -name '*.py' %s "
-                             "-exec cat {} + | wc -l" % EXCL, "repo",
+                             "-exec cat {} + | wc -l" % excl, "repo",
                              "含 vendored 的机制层（zreflect/），不含 toolchain/")
     md_lines_cmd = ("find . -name '*.md' %s"
-                    " -exec awk 'FNR==1{b=0} /<!-- AUTO:FACTS -->/{b=1} !b' {} + | wc -l" % EXCL)
+                    " -exec awk 'FNR==1{b=0} /<!-- AUTO:FACTS -->/{b=1} !b' {} + | wc -l" % excl)
     facts["md_lines"] = fact(
         int(subprocess.run(md_lines_cmd, shell=True, capture_output=True,
-                           text=True, check=True, cwd=GATE_REPO).stdout.strip()),
+                           text=True, check=True, cwd=REPO,
+                           encoding="utf-8", errors="replace").stdout.strip()),
         md_lines_cmd, "repo",
         "不含机器块：块就渲染在文档里，数进去会让渲染一遍值就过期")
 
@@ -294,6 +314,16 @@ def measure():
             int(_run("find m0 -maxdepth 1 -name 'run-*.sh' | wc -l")),
             "find m0 -maxdepth 1 -name 'run-*.sh' | wc -l", "repo",
             "M0 的三个 runner（主链 / 反例 / MM2 证据）")
+
+    return facts
+
+
+def _m0_facts():
+    """M0 验收与产物事实（读日志；贵产物挂便宜见证）。
+
+    PINNED: 本函数体内的中文全是台账数据（fact 的 note/cmd），不是用户消息。
+    """
+    facts = {}
 
     # ── M0 验收证据（读日志，便宜）───────────────────────────────────────────
     # 值 = PASS 数。日志由 runner 生成，是「跑过」的记录；cmd 只数行，不重跑编译
@@ -312,9 +342,19 @@ def measure():
             cf, "grep -c '^OK' m0/evidence/counterexamples.log", "m0/evidence",
             "§9.5 反例 + §9.6 模板缺口：两条都按预期表现")
 
-    # ── M0 产物事实（贵：要跑编译）⇒ replay=False + 便宜见证 ────────────────
-    # 值的**唯一产地**是 runner 打的 `ARTIFACT <key> <value>` 行 —— 不重跑编译，
-    # 只 grep 日志（便宜）；见证断言「产出它们的那套输入没变」（源/脚本指纹）。
+    facts.update(_m0_artifacts())
+    return facts
+
+
+def _m0_artifacts():
+    """M0 产物事实（贵：要跑编译）⇒ replay=False + 便宜见证。
+
+    值的**唯一产地**是 runner 打的 `ARTIFACT <key> <value>` 行 —— 不重跑编译，
+    只 grep 日志（便宜）；见证断言「产出它们的那套输入没变」（源/脚本指纹）。
+
+    PINNED: 本函数体内的中文全是台账数据（fact 的 note/cmd），不是用户消息。
+    """
+    facts = {}
     for key, log in (("wasm32", "m0-wasm32.log"), ("wasm64", "m0-wasm64.log")):
         path = os.path.join(EV, log)
         if not os.path.exists(path):
@@ -345,6 +385,16 @@ def measure():
                 "§5.5 MM=2 主路的三步证据（bare / +tag / +keep-list）",
                 replay=False,
                 witness=BUILD_INPUTS_CMD, witness_expect=build_inputs_fingerprint())
+
+    return facts
+
+
+def _m1_facts():
+    """M1 体积与验收事实。
+
+    PINNED: 本函数体内的中文全是台账数据（fact 的 note/cmd），不是用户消息。
+    """
+    facts = {}
 
     # ── M1：把 clang/lld 编成 wasm 的体积（贵 ⇒ 挂见证）────────────────────
     # 值的产地 = m1/build-clang-wasm.sh 的 ARTIFACT 行（见 m1/evidence/build-*.log）。
@@ -380,8 +430,18 @@ def measure():
                 "m1/evidence", label, replay=False,
                 witness=m1_inputs_cmd(), witness_expect=m1_inputs_fingerprint())
 
+    return facts
+
+
+def _m2_facts():
+    """M2 打包/驱动/浏览器/发布验收事实。
+
+    PINNED: 本函数体内的中文全是台账数据（fact 的 note/cmd），不是用户消息。
+    """
+    facts = {}
+
     # ── M2：sysroot 打包 + fail-closed（SPEC §6 / §2 / §9.10）──────────────
-    PKG = repo("package/evidence")
+    pkg = repo("package/evidence")
     for key, log, label in (
             ("sysroot_wasm32_tar", "package-wasm32.log",
              "wasm32 sysroot tar 字节（SPEC §6 交付物）"),
@@ -394,7 +454,7 @@ def measure():
         # sha 型事实（issue #4 ⑤）：值会随打包输入变 ⇒ 显式 replay=False + 见证。
         if key == "sysroot_wasm64_tar":
             for skey, slog in (("sysroot_wasm32_tar_sha256", "package-wasm32.log"),):
-                raw = _artifact(os.path.join(PKG, slog), skey)
+                raw = _artifact(os.path.join(pkg, slog), skey)
                 if raw:
                     facts[skey] = fact(
                         raw, "grep -m1 '^ARTIFACT %s ' package/evidence/%s | cut -d' ' -f3"
@@ -402,7 +462,7 @@ def measure():
                         "sysroot tar 的 sha256（SPEC §9.10 的校验值）", replay=False,
                         witness=package_inputs_cmd(),
                         witness_expect=package_inputs_fingerprint())
-        val = _artifact_int(os.path.join(PKG, log), key)
+        val = _artifact_int(os.path.join(pkg, log), key)
         if val is not None:
             facts[key] = fact(
                 val, "grep -m1 '^ARTIFACT %s ' package/evidence/%s | cut -d' ' -f3" % (key, log),
@@ -410,7 +470,7 @@ def measure():
                 witness=package_inputs_cmd(), witness_expect=package_inputs_fingerprint())
 
     # ── M2：薄驱动（SPEC §7.4/§7.5）的验收（贵 ⇒ 挂见证）────────────────────
-    EVD = repo("driver/evidence")
+    evd = repo("driver/evidence")
     for key, log, label in (
             ("driver_acceptance_pass", "driver-acceptance.log",
              "薄驱动 compile() 验收 PASS 数（含带真宿主的缺口检查）"),
@@ -478,14 +538,24 @@ def measure():
              "wasm64 side module 字节数（对比 wasm32 [[m0_wasm32_side_bytes]] 量级）"),
             ("wasm32_module_bytes", "wasm64-acceptance.log",
              "同一夹具 wasm32 的字节数（两档对照）")):
-        path = log if os.path.isabs(log) else os.path.join(EVD, log)
-        rel_log = os.path.relpath(path, GATE_REPO)
+        path = log if os.path.isabs(log) else os.path.join(evd, log)
+        rel_log = os.path.relpath(path, REPO)
         val = _artifact_int(path, key)
         if val is not None:
             facts[key] = fact(
                 val, "grep -m1 '^ARTIFACT %s ' %s | cut -d' ' -f3" % (key, rel_log),
                 "driver/evidence", label, replay=False,
                 witness=driver_inputs_cmd(), witness_expect=driver_inputs_fingerprint())
+
+    return facts
+
+
+def _m3_and_census():
+    """M3 首拉体积、优化实验与 .oct 普查事实。
+
+    PINNED: 本函数体内的中文全是台账数据（fact 的 note/cmd），不是用户消息。
+    """
+    facts = {}
 
     # ── M3：首拉体积（SPEC §6 的预算口径 —— 不是三资产总量，见 R-008）────────
     for key, log, label in (
@@ -501,14 +571,6 @@ def measure():
                 val, "grep -m1 '^ARTIFACT %s ' m1/evidence/%s | cut -d' ' -f3" % (key, log),
                 "m1/evidence", label, replay=False,
                 witness=m1_opt_inputs_cmd(), witness_expect=m1_opt_inputs_fingerprint())
-        path = log if os.path.isabs(log) else os.path.join(EVD, log)
-        rel_log = os.path.relpath(path, GATE_REPO)
-        val = _artifact_int(path, key)
-        if val is not None:
-            facts[key] = fact(
-                val, "grep -m1 '^ARTIFACT %s ' %s | cut -d' ' -f3" % (key, rel_log),
-                "driver/evidence", label, replay=False,
-                witness=driver_inputs_cmd(), witness_expect=driver_inputs_fingerprint())
 
     # ── M1 体积优化实验（隔壁一轮的产物，贵 ⇒ 挂见证）──────────────────────
     # 值来自 m1/evidence/opt-*.log 的 ARTIFACT 行。
@@ -566,9 +628,29 @@ def measure():
                 witness="sha256sum m0/evidence/oct-eh-perfile.txt | cut -c1-16",
                 witness_expect=oct_census_fingerprint())
 
-    # ── 工具链版本（要 toolchain/ 在；不在就量不到）──────────────────────────
-    # cmd 里不拼 sed 转义：直接打整行再在闸门侧用 grep 取值不可判，
-    # 所以 cmd 就写成「打版本号那一行」，值取同一行 —— 裸值契约仍然成立。
+    return facts
+
+
+def _toolchain_and_ledger():
+    """翻案条数 / 闸门数 / 数据层形状（便宜：数文件）。
+
+    PINNED: 本函数体内的中文全是台账数据（fact 的 note/cmd），不是用户消息。
+    """
+    facts = {}
+    facts.update(_toolchain_versions())
+    facts.update(_ledger_shapes())
+    return facts
+
+
+def _toolchain_versions():
+    """emcc / clang / lld 版本（要 toolchain/ 在；不在就量不到）。
+
+    cmd 里不拼 sed 转义：直接打整行再在闸门侧用 grep 取值不可判，
+    所以 cmd 就写成「打版本号那一行」，值取同一行 —— 裸值契约仍然成立。
+
+    PINNED: 本函数体内的中文全是台账数据（fact 的 note/cmd），不是用户消息。
+    """
+    facts = {}
     if os.path.exists(EMCC):
         line = _run("%s --version 2>/dev/null | head -1" % EMCC)
         if line:
@@ -601,11 +683,21 @@ def measure():
                 % ("clang" if name == "clang_major" else "wasm-ld", vers),
                 "toolchain", "SPEC §4.2 的旗标随这个版本漂")
 
+    return facts
+
+
+def _ledger_shapes():
+    """翻案条数 / 闸门数 / 数据层形状。
+
+    PINNED: 本函数体内的中文全是台账数据（fact 的 note/cmd），不是用户消息。
+    """
+    facts = {}
+
     # ── 翻案台账条数（便宜：数 JSON）────────────────────────────────────────
     rp = repo("retractions.json")
     if os.path.exists(rp):
         try:
-            import json as _json                               # noqa: PLC0415
+            import json as _json  # noqa: PLC0415
             n = len(_json.load(open(rp, encoding="utf-8")).get("retractions", []))
             facts["retractions_count"] = fact(
                 n, "python3 -c \"import json;print(len(json.load(open('retractions.json'))['retractions']))\"",
@@ -625,7 +717,7 @@ def measure():
     # 这个数字会随本仓测量逻辑长，所以它必须进台账，不许手抄。
     # （台账**条数**刻意不设键：它数的是自己写盘后的结果，量的时候还没写盘
     #   ⇒ 值必然差一。掉条判据本来就在守卫里，不是一条能复跑的裸值。）
-    me = os.path.join(GATE_REPO, "zreflect/measure_llvm_wasm.py")
+    me = os.path.join(REPO, "zreflect/measure_llvm_wasm.py")
     if os.path.exists(me):
         facts["measure_module_lines"] = fact(
             int(_run("wc -l < zreflect/measure_llvm_wasm.py")),

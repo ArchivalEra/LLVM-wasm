@@ -1,23 +1,34 @@
 #!/usr/bin/env python3
-"""把台账渲染成文档里的机器块 —— **数字的唯一产地**。
+"""Render the ledger into a document's machine block -- **the single origin of
+the numbers**.
 
-生成器（`facts.py`）与闸门（`check_facts.py`）必须共用这一个函数，
-否则「块对不对」两边口径会分叉：生成器改了排版，闸门还按旧排版比，于是永远不一致
-（或者更糟：两边都改成了宽松匹配，于是永远「一致」）。
+The generator (`facts.py`) and the gate (`check_facts.py`) must share this one
+function; otherwise the two sides' yardstick for "is the block right" forks:
+the generator changes the layout, the gate still compares against the old
+layout, and they disagree forever (or worse: both switch to lenient matching,
+and they "agree" forever).
 """
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from gate import module_meta                             # noqa: E402
+from gate import module_meta  # noqa: E402
+from i18n import M  # noqa: E402
 
 BLOCK_BEGIN = "<!-- AUTO:FACTS -->"
 BLOCK_END = "<!-- /AUTO:FACTS -->"
 
+# PINNED: AUTO machine block fixed language (does not follow REFLECT_LANG) --
+# it is written into STATE.md and reconciled byte-for-byte by `facts.py --check`;
+# following the language would make "the same commit differ across environments"
+# (non-convergent). check_i18n scans `PINNED:` markers and does **not** trust the
+# name (trusting the name = the roster drifts).
 PREAMBLE = [
-    "> 本区块由 `zreflect/facts.py --render-doc` 从 `FACTS.json` 渲染，**不要手改**"
-    "（pre-commit 会重算并 `git add`）。",
-    "> 正文里的「测出来的数字」只在这里生产：要引用就写 `[[键名]]`，不要手抄数字。",
+    ("> This block is rendered by `zreflect/facts.py --render-doc` from"
+    " `FACTS.json`; **do not edit by hand**"
+    " (pre-commit recomputes and `git add`s it)."),
+    ("> 'Measured numbers' in the prose are produced only here: to cite one, write"
+    " `[[key]]`; never copy the number by hand."),
 ]
 
 
@@ -28,44 +39,56 @@ def _fmt(v):
 
 
 def render_block(ledger):
-    """台账 → 机器块（含首尾标记）。**纯函数**：同一份台账渲染两次逐字节相同。"""
-    from ledger import facts_of                          # noqa: PLC0415
+    """Ledger -> machine block (including begin/end markers). **Pure function**:
+    rendering the same ledger twice is byte-identical.
+
+    PINNED: AUTO machine block fixed language (see the note above PREAMBLE).
+    """
+    from ledger import facts_of  # noqa: PLC0415
 
     f = facts_of(ledger)
     lines = [BLOCK_BEGIN] + list(PREAMBLE) + [""]
     if not f:
-        # 零值守卫：**空台账必须明写「为空」**，不许渲染成一张安静的空表 ——
-        # 空表看起来像「一切正常」，而事实是「一条都没量到」。
-        lines += ["**台账为空** —— 一条事实都没有。空不是「通过」：先查 measure() 是不是坏了。", ""]
+        # Zero-value guard: **an empty ledger must say so explicitly**; rendering
+        # it as a quiet empty table is forbidden -- an empty table looks like
+        # "all normal", while the fact is "not one entry was measured".
+        lines += [("**The ledger is empty** -- not a single fact. Empty is not"
+                   " \"pass\": first check whether measure() is broken."), ""]
     else:
-        # 「测于」列 = 台账里的 measured_at（采集时刻的记录，纯函数输入 ——
-        # 不渲染「几天前」：那会随墙上时钟变，--check 永不收敛。issue #3 ②）
-        lines += ["| 键 | 值 | 测于 | 复跑命令 |", "|---|---|---|---|"]
+        # The "measured at" column = the ledger's measured_at (a record of the
+        # collection moment, a pure-function input -- do not render "a few days
+        # ago": that changes with the wall clock and --check would never
+        # converge. issue #3, item 2)
+        lines += ["| key | value | measured at | replay cmd |", "|---|---|---|---|"]
         for k in sorted(f):
             e = f[k] if isinstance(f[k], dict) else {"value": f[k]}
             lines.append("| `%s` | %s | %s | `%s` |"
                          % (k, _fmt(e.get("value")), e.get("measured_at", "—"),
                             e.get("cmd", "?")))
-        lines += ["", "%d 条事实。" % len(f)]
+        lines += ["", "%d facts." % len(f)]
     lines.append(BLOCK_END)
     return "\n".join(lines)
 
 
 def body_of(block):
-    """取块内的正文（两端标记之间），供「块与台账一致」的比较用。"""
+    """Extract the body inside the block (between the two markers), for the
+    "block matches the ledger" comparison."""
     if BLOCK_BEGIN not in block:
         return ""
     return block.split(BLOCK_BEGIN, 1)[1].split(BLOCK_END, 1)[0]
 
 
 def prose_of(doc_text):
-    """文档里**块以外**的正文（裸数字要在这里面查）。
+    """The document's prose **outside blocks** (bare numbers are looked for in
+    there).
 
-    #14：剥**全部** `<!-- AUTO:… -->…<!-- /AUTO:… -->` 区域，不是只剥事实块
-    那一对 —— Phase 3 起文档有两个机器块（FACTS + GATES），只剥 FACTS 会让
-    闸门名录整块进入裸数字扫描（名录里的 `sha256` 被切成 256，与台账里值恰
-    为 256 的事实撞车 ⇒ 假红；两个下游独立撞到，上游只因示例台账没有 256
-    而幸免 —— 机制上必炸的偶发）。
+    #14: strip **all** `<!-- AUTO:... -->...<!-- /AUTO:... -->` regions, not just
+    the facts block's pair -- from Phase 3 on, documents carry two machine blocks
+    (FACTS + GATES); stripping only FACTS would push the whole gate roster into
+    the bare-number scan (the roster's `sha256` gets cut into 256, colliding with
+    a ledger fact whose value happens to be 256 => false red; two downstreams hit
+    it independently, and the upstream only escaped because its sample ledger had
+    no 256 -- an accident that was mechanically bound to fire).
     """
     out, i = [], 0
     while True:
@@ -76,7 +99,7 @@ def prose_of(doc_text):
         out.append(doc_text[i:b])
         e = doc_text.find("-->", b + len("<!-- AUTO:"))
         end = doc_text.find("<!-- /AUTO:", e) if e >= 0 else -1
-        if end < 0:                  # 有头无尾：当没有块（标记检查另有零值守卫）
+        if end < 0:                  # begin without end: treat as no block (marker checks have their own zero-value guard)
             out.append(doc_text[b:])
             break
         close = doc_text.find("-->", end)
@@ -84,58 +107,83 @@ def prose_of(doc_text):
     return "".join(out)
 
 
-# ── 自证 ──────────────────────────────────────────────────────────────────────
+# -- self-verification --------------------------------------------------------
+def _extra_lines(block):
+    """Lines of the block body other than `PREAMBLE` and blank lines (what it
+    "says" beyond the PINNED boilerplate)."""
+    return [ln for ln in body_of(block).splitlines()
+            if ln.strip() and ln not in PREAMBLE]
+
+
 def _cases():
     full = {"facts": {"a": 4752, "s": {"value": "b" * 64, "cmd": "c"}}}
+    # The header is taken from **the render output itself** (do not hand-copy
+    # PINNED text -- each copy is one more origin that can drift)
+    header = next(ln for ln in body_of(render_block(full)).splitlines()
+                  if ln.startswith("|"))
     return [
-        # ① 正常不报
-        ("每个键都出现在块里", lambda: all(k in render_block(full) for k in ("a", "s"))),
-        ("值是原值（4752 在块里）", lambda: "**4752**" in render_block(full)),
-        ("sha 截断显示（不整条摊开）", lambda: "`" + "b" * 16 + "…`" in render_block(full)),
-        ("块渲染是纯函数（渲染两次逐字节相同）",
+        # (1) compliant input: nothing reported
+        ("render.keys_in_block",
+         lambda: all(k in render_block(full) for k in ("a", "s"))),
+        ("render.raw_value", lambda: "**4752**" in render_block(full)),
+        ("render.sha_truncated", lambda: "`" + "b" * 16 + "…`" in render_block(full)),
+        ("render.block_pure",
          lambda: render_block(full) == render_block(full)),
-        ("prose_of 只取块以外的正文（块内的表格被排除，块外的字保留）",
-         lambda: (lambda d: ("正文" in prose_of(d) and "tail" in prose_of(d)
-                             and "| 键 |" not in prose_of(d) and "| 键 |" in d))(
-             "正文\n" + render_block(full) + "\ntail")),
-        ("没有块标记时 prose_of 退回整篇（找不到块 ≠ 可以当空）",
-         lambda: prose_of("没有标记的文档") == "没有标记的文档"),
-        # #14：双机器块文档，GATES 块也必须剥掉（否则名录里的 sha256 被当裸数字）
-        ("双块文档：两个 AUTO 块都不进 prose（#14）",
+        ("render.prose_only_outside_block",
+         lambda: (lambda d: ("body" in prose_of(d) and "tail" in prose_of(d)
+                             and header not in prose_of(d) and header in d))(
+             "body\n" + render_block(full) + "\ntail")),
+        ("render.prose_fallback_whole_doc",
+         lambda: prose_of("a document without markers") == "a document without markers"),
+        # #14: in a two-machine-block document the GATES block must be stripped
+        # too (otherwise the roster's sha256 is read as a bare number)
+        ("render.prose_strips_all_blocks",
          lambda: (lambda d: ("sha256" not in prose_of(d)
-                             and "事实表" not in prose_of(d)
-                             and "正文" in prose_of(d) and "尾" in prose_of(d)))(
-             "正文\n<!-- AUTO:FACTS -->\n事实表\n<!-- /AUTO:FACTS -->\n"
-             "<!-- AUTO:GATES -->\n| x | sha256 |\n<!-- /AUTO:GATES -->\n尾")),
-        ("块内有 begin 字面量（md_lines 的 awk 判据）不破坏剥离",
-         lambda: (lambda d: "awk" not in prose_of(d) and "尾" in prose_of(d))(
-             "头\n<!-- AUTO:FACTS -->\ncmd: awk '<!-- AUTO:FACTS -->'\n"
-             "<!-- /AUTO:FACTS -->\n尾")),
-        # ② 该报的必须报（渲染层的「该报」= 必须发生变化，不许是常量）
-        ("★ 台账少一条 ⇒ 块跟着变（块不是常量）",
+                             and "GATES_TABLE" not in prose_of(d)
+                             and "body" in prose_of(d) and "tail" in prose_of(d)))(
+             "body\n<!-- AUTO:FACTS -->\nFACTS_TABLE\n<!-- /AUTO:FACTS -->\n"
+             "<!-- AUTO:GATES -->\n| x | sha256 |\n<!-- /AUTO:GATES -->\ntail")),
+        ("render.prose_nested_begin_literal",
+         lambda: (lambda d: "awk" not in prose_of(d) and "tail" in prose_of(d))(
+             "head\n<!-- AUTO:FACTS -->\ncmd: awk '<!-- AUTO:FACTS -->'\n"
+             "<!-- /AUTO:FACTS -->\ntail")),
+        # (2) what must be reported is reported (at the render layer, "reported"
+        # = the output must change; a constant is forbidden)
+        ("★ render.block_not_constant",
          lambda: render_block(full) != render_block({"facts": {"a": 4752}})),
-        # ③ 空输入必须报
-        ("★ 空台账 ⇒ 必须明写「台账为空」，且不许渲染出一张表",
-         lambda: "台账为空" in render_block({"facts": {}})
-         and "| 键 |" not in render_block({"facts": {}})),
-        ("★ 空台账与有台账的块必须不同（空不是「都一样」）",
+        # (3) empty input must be reported
+        ("★ render.empty_ledger_says_so",
+         # An empty ledger must **additionally state it** (a non-empty line beyond
+         # PREAMBLE), and **must not** render a table.
+         lambda: (lambda b: _extra_lines(b) != []
+                  and not any(ln.lstrip().startswith("|")
+                              for ln in body_of(b).splitlines()))(
+             render_block({"facts": {}}))),
+        ("★ render.empty_differs_from_full",
          lambda: render_block({"facts": {}}) != render_block(full)),
     ]
 
 
 def _selftest():
-    import os                                            # noqa: PLC0415
-    import sys                                           # noqa: PLC0415
+    import os  # noqa: PLC0415
+    import sys  # noqa: PLC0415
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from gate import selftest                            # noqa: PLC0415
-    return selftest("render（数字的唯一产地）", _cases())
+    from gate import activate_or_fatal, selftest  # noqa: PLC0415
+    # Activation happens **before** the selftest: a package set but absent =>
+    # FATAL rc 2 (previously this entry never activated, so
+    # `REFLECT_LANG=de render.py --selftest` silently returned rc=0 for a
+    # nonexistent package).
+    rc = activate_or_fatal()
+    if rc:
+        return rc
+    return selftest(M("gate.title.render"), _cases())
 
 
-MODULE = module_meta("机器块渲染", "数字的唯一产地（纯函数）", selftest=True)
+MODULE = module_meta("Machine block rendering", "the single origin of the numbers (pure functions)", selftest=True)
 
 
 if __name__ == "__main__":
-    import os                                            # noqa: PLC0415
-    import sys                                           # noqa: PLC0415
+    import os  # noqa: PLC0415
+    import sys  # noqa: PLC0415
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     sys.exit(_selftest())

@@ -1,30 +1,44 @@
 #!/usr/bin/env python3
-"""陈旧断言闸门：活状态里的 sha 断言必须有出处，退役名不许回来当现状。
+"""Stale-assertion gate: sha assertions in living state must have provenance,
+and retired names must not come back as current state.
 
-从 Octave-Full-Wasm 的 `.githooks/check-handoff.py` 迁移并泛化（那边是 L1–L4 四条
-项目规则；这里留下的是**机制**，各仓库用自己的台账与退役名单喂它）：
+Migrated and generalized from Octave-Full-Wasm's `.githooks/check-handoff.py`
+(there it was four project rules, L1-L4; what survives here is the **mechanism**,
+fed by each repo's own ledger and retired list):
 
-  **R1 sha 断言的出处**（原 L1 的泛化）
-  活状态正文里，靠近 sha / hash / 校验 / 指纹 字样的十六进制串，三种归宿：
-      ① 它是台账里的一条事实（整串或渲染出的 16 位前缀都能对上）；
-      ② 那一行自带历史标记（历史 / 退役 / 已翻案……）；
-      ③ 那一行带**明确出处**（交付包名、反引号 commit sha）。
-  三者都不是 ⇒ 它就是一句没有出处的「现在如此」—— 换了构建还挂着旧 sha 的那种。
-  那边踩过的形状：换带 GL 的构建之后，头部还挂着旧 sha 没人发现。
-  ⚠️ 两个出口（历史标记 / 明确出处）都是从血里来的：没有历史出口，人只能删掉历史；
-     出口写成"任何裸 sha"，假断言就整行豁免（那边实测漏检过一次）。
+  **R1 provenance of sha assertions** (generalization of the original L1)
+  In living-state text, a hex string near the words sha / hash / checksum /
+  fingerprint has three possible homes:
+      (1) it is a fact in the ledger (the full string or the rendered 16-char
+          prefix matches);
+      (2) that line carries a historical marker (history / retracted /
+          overturned ...);
+      (3) that line carries **explicit provenance** (delivery-package name, a
+          backticked commit sha).
+  None of the three => it is an unsourced "this is how it is now" -- the kind
+  that still hangs an old sha after the build changed.
+  The shape bitten over there: after switching to a GL build, the header kept
+  the old sha and nobody noticed.
+  Warning: both escapes (historical marker / explicit provenance) were paid
+  for in blood. Without a history escape, people can only delete history; if
+  the escape is written as "any bare sha", a fake assertion gets a whole-line
+  exemption (that repo measured one such miss).
 
-  **R2 退役名**（原 L3 的泛化）
-  退役组件名**独立成词**地出现在活状态里 = 「还在用它」的断言。
-  ⚠️ 独立成词是必须的：分支名 / 文件名里的退役词是在**指路**（历史留档），
-  不是当前状态的断言。名单用 `REFLECT_RETIRED` 配（逗号分隔）；不配 = 本条规则
-  **明说未启用**，不假装查过。
+  **R2 retired names** (generalization of the original L3)
+  A retired component name appearing in living state as a **standalone word**
+  is an assertion of "still using it".
+  Warning: standalone-word is required -- a retired word inside a branch name
+  / file name is **giving directions** (a historical record), not an assertion
+  about current state. Configure the list with `REFLECT_RETIRED`
+  (comma-separated); unset = this rule is **declared off**, not silently
+  pretended to be checked.
 
-  历史章节用 `REFLECT_HISTORY_SECS` 声明（如 `5,9,10`）——编号对不上的照样算活状态。
+  History sections are declared with `REFLECT_HISTORY_SECS` (e.g. `5,9,10`)
+  -- sections whose numbers do not match still count as living state.
 
-用法：
-  python3 zreflect/check_stale.py            # 违规即非零（pre-commit / pre-push 用）
-  python3 zreflect/check_stale.py --list     # 只列不改、永远 0（人工巡检）
+Usage:
+  python3 zreflect/check_stale.py            # nonzero on violations (pre-commit / pre-push)
+  python3 zreflect/check_stale.py --list     # list only, never changes, always 0 (manual patrol)
   python3 zreflect/check_stale.py --selftest
 """
 import os
@@ -34,23 +48,29 @@ from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import knobs  # noqa: E402
 from gate import fatal, finish, guard_nonempty, main_selftest_or, meta, repo  # noqa: E402
-from ledger import age_days, facts_of, load, value_of     # noqa: E402
-from living import DATED_RECORD, living_lines  # noqa: E402
+from i18n import M  # noqa: E402
+from ledger import age_days, facts_of, load_or_fatal, value_of  # noqa: E402
+from living import CITE_RE, DATED_RECORD, living_lines  # noqa: E402
 
-DOCS = tuple(d for d in os.environ.get(
-    "REFLECT_DOCS",
-    "STATE.md,AGENTS.md,README.md,README.zh.md,README.de.md").split(",") if d)
+# **Not resolved at module level**: `knobs.docs_names()` is the single source
+# of truth (defaults live in the registry), and a module-level constant would
+# freeze it at import time -- neither the selftest nor the renamed-doc fixtures
+# could change it afterwards.
+# Warning: a five-name literal was once handwritten here and drifted away from
+# the registry's six names (PRINCIPLES.md was the missing one).
 HIST_SECS = tuple(s for s in os.environ.get("REFLECT_HISTORY_SECS", "").split(",") if s)
 RETIRED = tuple(s for s in os.environ.get("REFLECT_RETIRED", "").split(",") if s)
 STALE_DAYS_RAW = os.environ.get("REFLECT_STALE_DAYS", "").strip()
 
 
 def _stale_days():
-    """测龄报警阈值（天，issue #3 ②）：`REFLECT_STALE_DAYS` 可配。
+    """Age-check alert threshold (days, issue #3 item 2): configurable via
+    `REFLECT_STALE_DAYS`.
 
-    不配 / 坏值 ⇒ None —— 该规则**明说未启用**（同 REFLECT_RETIRED 的先例），
-    不假装查过。
+    Unset / bad value => None -- the rule is **declared off** (same precedent
+    as REFLECT_RETIRED), not silently pretended to be checked.
     """
     if not STALE_DAYS_RAW:
         return None
@@ -64,7 +84,8 @@ SHA_TOKEN = re.compile(r"(?<![0-9a-f`])([0-9a-f]{8,64})(?![0-9a-f`])")
 
 
 def _sha_facts(f):
-    """台账里的 sha 类事实值（64 位串就是 sha；别的长度的串不猜）。"""
+    """sha-class fact values in the ledger (a 64-char string IS a sha; strings
+    of other lengths are not guessed at)."""
     out = set()
     for entry in (f or {}).values():
         v = value_of(entry)
@@ -73,67 +94,80 @@ def _sha_facts(f):
     return out
 
 
-# 引用式出处（issue #25）：`[[键名]]` 指向台账 —— 与「历史」标记不同，
-# 它是**可复跑**的锚。
-CITE_RE = re.compile(r"\[\[[A-Za-z_][A-Za-z0-9_]*\]\]")
+# Cited provenance (issue #25): `[[key]]` points into the ledger -- unlike a
+# "history" marker, it is a **re-playable** anchor.
 
 
 def _is_sourced(line):
-    """这一行带了**明确的、可核的**出处吗？
+    """Does this line carry **explicit, verifiable** provenance?
 
-    issue #25 之前：`HIST_MARK`（「历史」二字）**单独**就算出处 ⇒ 任意断言
-    加「历史」即获整行豁免 —— 下游实测：同一句编造 sha，只多「历史」两个字，
-    就从红变绿。闸门的报错文案自己就写着「或带上历史标记/出处」，**在教用户
-    绕过自己**（`living.py:11-19` 早就自认这个漏检，但只写成注释）。
+    Before issue #25: `HIST_MARK` (the two characters meaning "history") was
+    **by itself** enough to count as provenance => any assertion became
+    whole-line exempt by adding a "history" label. Measured downstream: the
+    same fabricated sha, plus only the word "history", went from red to
+    green. The gate's own error message said "or add a historical
+    marker/provenance" -- it was **teaching users to bypass itself**
+    (`living.py:11-19` already admitted this miss, but only in a comment).
 
-    现在：「历史」**不豁免内容**，只表示「不与今天对账」；这一行仍必须给出
-    可核的出处之一：
+    Now: "history" **does not exempt the content**; it only means "not
+    reconciled against today". The line must still give one of the verifiable
+    provenance forms:
 
-      · `DATED_RECORD` —— 交付包名（含 8 位日期）或**反引号里的** commit sha；
-      · `[[键名]]` —— 引用台账事实（可复跑）。
+      - `DATED_RECORD` -- a delivery-package name (with an 8-digit date) or a
+        commit sha **inside backticks**;
+      - `[[key]]` -- a citation of a ledger fact (re-playable).
 
-    纯「历史」二字不再够 —— 它只是**提示**，不是证据。要真正豁免一条历史
-    断言，把它登记进 `retractions.json` / `REFLECT_RETIRED`（单一产地），
-    或给出交付名/sha 引用。
+    Bare "history" no longer suffices -- it is a **hint**, not evidence. To
+    genuinely exempt a historical assertion, register it in
+    `retractions.json` / `REFLECT_RETIRED` (single source of truth), or give a
+    delivery-name/sha citation.
     """
     return bool(DATED_RECORD.search(line) or CITE_RE.search(line))
 
 
 def _sha_assertion_problems(f, docs, hist):
-    """R1：活状态里靠近 sha / hash 字样的十六进制串必须有可核出处。
+    """R1: hex strings near sha / hash words in living state need verifiable
+    provenance.
 
-    三种归宿（台账事实 / 可核出处）；都不是 ⇒ 报。台账里一个 sha 类事实都没有
-    ⇒ 单独报「先量进台账」（空不是通过）。
+    Three homes (ledger fact / verifiable provenance); none => report. Zero
+    sha-class facts in the ledger => a separate "measure it into the ledger
+    first" report (empty is not a pass).
     """
     out = []
     shas = _sha_facts(f)
     for name, body in sorted(docs.items()):
         for lineno, line, is_living in living_lines(body, hist):
-            if not is_living or not SHA_NEAR.search(line) or _is_sourced(line):
-                continue
-            toks = SHA_TOKEN.findall(line)
-            if not toks:
-                continue
-            if not shas:
-                out.append("%s:%d sha 断言无出处：台账里**没有任何 sha 类事实**，"
-                           "先把它量进台账（带复跑命令），再引用" % (name, lineno))
-                continue
-            for tok in toks:
-                if not any(tok == s or s.startswith(tok) or tok.startswith(s[:len(tok)])
-                           for s in shas):
-                    out.append("%s:%d sha 断言无出处：`%s` 不在台账里 —— "
-                               "改写成 [[键名]] 引用，或给出可核出处"
-                               "（交付包名 / 反引号 commit sha）。注意："
-                               "「历史」二字**不构成出处**（issue #25）"
-                               % (name, lineno, tok[:16]))
+            out += _sha_line_problems(name, lineno, line, is_living, shas)
     return out
 
 
-def _stale_age_problems(f, sd):
-    """测龄（issue #3 ②）：台账里的 measured_at 距今天的天数超阈值 ⇒ 报。
+def _sha_line_problems(name, lineno, line, is_living, shas):
+    """Per-line sha provenance verdict: not living / not near a sha word /
+    already sourced => no report.
 
-    未配置（sd is None）⇒ 不查（明说未启用）；读不到时间戳 ⇒ 也报
-    （读不到就明说，不许猜 0）。
+    With zero shas in the ledger, report "measure it into the ledger first"
+    first (empty is not a pass); with a ledger present but a string matching
+    no known sha (including prefix relations) => report unsourced.
+    """
+    if not is_living or not SHA_NEAR.search(line) or _is_sourced(line):
+        return []
+    toks = SHA_TOKEN.findall(line)
+    if not toks:
+        return []
+    if not shas:
+        return [M("stale.sha_no_facts", name=name, lineno=lineno)]
+    return [M("stale.sha_unsourced", name=name, lineno=lineno, actual=tok[:16])
+            for tok in toks
+            if not any(tok == s or s.startswith(tok) or tok.startswith(s[:len(tok)])
+                       for s in shas)]
+
+
+def _stale_age_problems(f, sd):
+    """Age check (issue #3 item 2): report when a ledger fact's measured_at is
+    more than the threshold days from today.
+
+    Unconfigured (sd is None) => no check (declared off); unreadable timestamp
+    => also reported (say so when unreadable, never guess 0).
     """
     out = []
     if sd is None:
@@ -141,18 +175,23 @@ def _stale_age_problems(f, sd):
     for k in sorted(f):
         d = age_days(f[k])
         if d is None:
-            out.append("`%s` 的 measured_at 缺失或不可解析 —— 测龄判据无法评估"
-                       "（读不到就明说，不许猜）" % k)
+            out.append(M("stale.measured_at_missing", key=k))
         elif d > sd:
-            out.append("`%s` 已 %.0f 天没测（阈值 %.0f 天）—— 重测并显式 "
-                       "`--accept-changes`" % (k, d, sd))
+            # Round at the emission point: the original copy was %.0f, and the
+            # null pack (no language pack) must display with the same
+            # convention -- otherwise the bare repr spews noise like
+            # 2495.6510176482525.
+            out.append(M("stale.too_old", key=k, days=round(d),
+                         threshold=round(sd)))
     return out
 
 
 def _retired_name_problems(docs, hist, retired):
-    """R2 退役名：独立成词出现在活状态 ⇒ 报。
+    """R2 retired names: a standalone-word occurrence in living state =>
+    report.
 
-    名单不配 = 未启用（run() 会明说，这里不打印 —— 纯函数保持安静）。
+    List unconfigured = rule off (run() says so explicitly; nothing printed
+    here -- pure functions stay quiet).
     """
     out = []
     for name, body in sorted(docs.items()):
@@ -162,129 +201,202 @@ def _retired_name_problems(docs, hist, retired):
             for w in retired:
                 if re.search(r"(?<![0-9A-Za-z_-])%s(?![0-9A-Za-z_.-])" % re.escape(w),
                              line, re.I):
-                    out.append("%s:%d 退役名 `%s` 出现在活状态里 —— 要么它没退役，"
-                               "要么这行带上历史标记" % (name, lineno, w))
+                    out.append(M("stale.retired_name", name=name, lineno=lineno,
+                                 entry=w))
     return out
 
 
 def problems(ledger, docs, retired=RETIRED, hist_secs=None, stale_days=None):
-    """返回问题清单（纯函数：自证要用）。`docs` = {文件名: 正文}。
+    """Return the problem list (pure function: the selftest depends on that).
+    `docs` = {file name: body}.
 
-    一层判据 = 一个函数，按 R1 → 测龄 → R2 的顺序拼接（顺序即报错顺序）。
+    One criterion layer = one function, concatenated in the order
+    R1 -> age check -> R2 (order is the report order).
 
-    `hist_secs=None` ⇒ 用模块级的 `REFLECT_HISTORY_SECS`；自证显式传，才能测到它。
-    `stale_days=None` ⇒ 用 `REFLECT_STALE_DAYS`（未配 ⇒ 测龄规则未启用）。
+    `hist_secs=None` => use the module-level `REFLECT_HISTORY_SECS`; the
+    selftest passes it explicitly, which is the only way to test it.
+    `stale_days=None` => use `REFLECT_STALE_DAYS` (unset => age rule off).
     """
     hist = HIST_SECS if hist_secs is None else hist_secs
     f = facts_of(ledger)
     if not f:
-        return ["台账为空 —— 空不是通过（零值守卫）：先查 measure() 是不是坏了"]
+        return [M("stale.ledger_empty")]
     if not docs:
-        return ["一份活状态文档都没扫到 —— 空输入不是通过（零值守卫）"]
+        return [M("stale.no_docs")]
     sd = _stale_days() if stale_days is None else stale_days
     return (_sha_assertion_problems(f, docs, hist)
             + _stale_age_problems(f, sd)
             + _retired_name_problems(docs, hist, retired))
 
 
-def run(argv):
+def _load_docs(names):
+    """Read living-state docs. Ones that **cannot be read** do not enter
+    `docs` (`guard_nonempty` rules on emptiness)."""
     docs = {}
-    for name in DOCS:
+    for name in names:
         p = repo(name)
         if os.path.exists(p):
             docs[name] = open(p, encoding="utf-8", errors="replace").read()
-    rc = guard_nonempty("check_stale", docs, "被扫描的活状态文档")
+    return docs
+
+
+def scanned_docs():
+    """The **list of files** this gate scans (`knobs.docs_names()`, the single
+    source of truth).
+
+    Warning: this function name used to return a {name: body} dict while
+    `check_retractions`'s same-named function returned a list -- one name,
+    two return shapes. The reconciliation criterion on the `knobs` side
+    therefore read the dict's keys (it happened to work). The name says
+    "list", so it returns a list.
+    """
+    return knobs.docs_names()
+
+
+def run(argv):
+    docs = _load_docs(scanned_docs())
+    rc = guard_nonempty("check_stale", docs, M("stale.scanned_docs"))
     if rc:
         return rc
     facts_name = os.environ.get("REFLECT_FACTS", "FACTS.json")
     if not os.path.exists(repo(facts_name)):
-        return fatal("缺事实台账（%s）。先跑 python3 zreflect/facts.py 量一遍。"
-                     % facts_name)
-    probs = problems(load(repo(facts_name)), docs)
+        return fatal(M("stale.ledger_missing", name=facts_name))
+    probs = problems(load_or_fatal(repo(facts_name)), docs)
     if not probs:
         if not RETIRED:
-            print("R2（退役名）：REFLECT_RETIRED 未配置 ⇒ 本条规则未启用（要启用："
-                  "REFLECT_RETIRED=名1,名2）", file=sys.stderr)
+            print(M("stale.retired_rule_off"), file=sys.stderr)
         if _stale_days() is None:
-            print("测龄：REFLECT_STALE_DAYS 未配置 ⇒ 本条规则未启用（要启用："
-                  "REFLECT_STALE_DAYS=天）", file=sys.stderr)
-    rc = finish("陈旧断言检测", probs,
-                "陈旧断言检测：OK（扫了 %d 份文档；退役名 %s）"
-                % (len(docs), "未配置" if not RETIRED else "%d 个" % len(RETIRED)))
+            print(M("stale.age_rule_off"), file=sys.stderr)
+    rc = finish(M("stale.title"), probs,
+                M("stale.ok", count=len(docs),
+                  declared=M("stale.retired_none") if not RETIRED
+                  else M("stale.retired_count", count=len(RETIRED))))
     if rc == 1 and "--list" in argv:
-        return 0                      # --list 只列不改、永远 0（人工巡检模式）
+        return 0                      # --list lists only, never changes, always 0 (manual patrol mode)
     return rc
 
 
-def _cases():
+def _cases_fixture():
+    """Fixture (the setup section of the original `_cases`, moved verbatim)."""
     led_sha = {"facts": {"site_sha": {"value": "a" * 64, "cmd": "sha256sum x", "source": "s"}}}
     led_plain = {"facts": {"n": {"value": 7, "cmd": "echo 7", "source": "s"}}}
-    bare = "部署 sha256 deadbeefdeadbeef00cafe00\n"
+    bare = "deployed sha256 deadbeefdeadbeef00cafe00\n"
     fresh = (datetime.now(timezone.utc) - timedelta(days=1)).strftime(
         "%Y-%m-%dT%H:%M:%S%z")
     led_fresh = {"facts": {"n": {"value": 7, "cmd": "echo 7", "source": "s",
                                  "measured_at": fresh}}}
     led_old = {"facts": {"n": {"value": 7, "cmd": "echo 7", "source": "s",
                                "measured_at": "2020-01-01T00:00:00+0000"}}}
+    return {'led_sha': led_sha, 'led_plain': led_plain, 'bare': bare, 'fresh': fresh, 'led_fresh': led_fresh, 'led_old': led_old}
+
+
+def _cases_sha(fx):
+    """See `_cases()`: 8 cases in this group."""
+    led_sha, led_plain, bare = fx["led_sha"], fx["led_plain"], fx["bare"]
     return [
-        # ① 正常不报
-        ("sha 与台账一致（16 位前缀也能对上）⇒ 不报",
-         lambda: problems(led_sha, {"A.md": "部署 sha256 %s…（截断显示）\n" % ("a" * 16)}) == []),
-        ("历史标记 + 反引号 sha（可核出处）⇒ 不报",
-         lambda: problems(led_plain, {"A.md": "旧 sha abcdef01（已翻案，见 `abc1234`）\n"}) == []),
-        # ② 反向判据（issue #25）：历史标记**不再是**免死金牌
-        ("★ 只有「历史」二字、无可核出处的假 sha ⇒ 必须报（issue #25）",
-         lambda: any("sha 断言无出处" in x for x in problems(
-             led_plain, {"A.md": "部署的 sha256 历史是 8287589ebdb53b4c 这串\n"}))),
-        ("★ [[键名]] 引用构成出处（可复跑锚）⇒ 不报",
-         lambda: problems(led_sha, {"A.md": "旧 sha256 [[site_sha]] 已翻案\n"}) == []),
-        ("台账无 sha + 正文无 sha 断言 ⇒ 不报",
-         lambda: problems(led_plain, {"A.md": "今天是好日子\n"}) == []),
-        ("声明过的历史章节里的 sha ⇒ 不报",
-         lambda: problems(led_plain, {"A.md": "## 5 历史\n" + bare}, hist_secs=("5",)) == []),
-        ("退役名未配置 ⇒ 不报（但 run() 会明说未启用）",
-         lambda: problems(led_plain, {"A.md": "还在用老组件\n"}, retired=()) == []),
-        ("退役名只在指路（分支/文件名）⇒ 不报",
-         lambda: problems(led_plain, {"A.md": "见 NOTES-osmesa.md 与 osmesa-分支\n"},
-                          retired=("osmesa",)) == []),
-        # ② 该报的必须报
-        ("★ sha 不在台账且无出处 ⇒ 必须报",
-         lambda: any("不在台账里" in x for x in problems(
-             led_sha, {"A.md": bare}))),
-        ("★ 台账里没有任何 sha 事实但正文断言了 sha ⇒ 必须报",
-         lambda: any("没有任何 sha 类事实" in x for x in problems(
-             led_plain, {"A.md": bare}))),
-        ("★ 未声明历史章节 ⇒ 里面的 sha 照查（默认从严）",
-         lambda: any("sha 断言无出处" in x for x in problems(
-             led_plain, {"A.md": "## 5 历史\n" + bare}, hist_secs=()))),
-        ("★ 退役名独立成词出现在活状态 ⇒ 必须报",
-         lambda: any("退役名" in x for x in problems(
-             led_plain, {"A.md": "后端还在用 osmesa\n"}, retired=("osmesa",)))),
-        ("★ 无编号章节也是活状态（默认从严）⇒ 藏进去的退役名必须报",
-         lambda: any("退役名" in x for x in problems(
-             led_plain, {"A.md": "## 常见问题\n还在用 osmesa\n"}, retired=("osmesa",)))),
-        # ③ 空输入必须报
-        ("★ 台账空 ⇒ 必须报", lambda: problems({"facts": {}}, {"A.md": "x\n"}) != []),
-        ("★ 一份文档都没扫到 ⇒ 必须报", lambda: problems(led_plain, {}) != []),
-        # ② 测龄（issue #3 ②）
-        ("测龄低于阈值 ⇒ 不报",
-         lambda: problems(led_fresh, {"A.md": "x\n"}, stale_days=30) == []),
-        ("阈值未配置 ⇒ 不报（规则明说未启用）",
-         lambda: problems(led_old, {"A.md": "x\n"}, stale_days=None) == []),
-        ("★ 测龄超阈值 ⇒ 必须报",
-         lambda: any("没测" in x for x in problems(
-             led_old, {"A.md": "x\n"}, stale_days=30))),
-        ("★ measured_at 缺失 + 阈值开启 ⇒ 必须报（读不到就明说）",
-         lambda: any("measured_at" in x for x in problems(
-             led_plain, {"A.md": "x\n"}, stale_days=30))),
+    ("stale.sourced_history_sha",
+     lambda: problems(led_plain, {"A.md": "old sha abcdef01 (retracted, see `abc1234`)\n"})
+     == []),
+    # (2) Reverse criterion (issue #25): a historical marker is **no longer**
+    # a get-out-of-jail card
+    ("★ stale.sha_no_facts·history_mark",
+     lambda: [p.code for p in problems(
+         led_plain, {"A.md": "deployed sha256 history is 8287589ebdb53b4c\n"})]
+     == ["stale.sha_no_facts"]),
+    ("stale.cite_anchor",
+     lambda: problems(led_sha, {"A.md": "old sha256 [[site_sha]] retracted\n"}) == []),
+    ("stale.no_sha_assertion",
+     lambda: problems(led_plain, {"A.md": "a fine day\n"}) == []),
+    ("stale.declared_history_section",
+     lambda: problems(led_plain, {"A.md": "## 5 history\n" + bare}, hist_secs=("5",))
+     == []),
+    # (2) What must be reported gets reported
+    ("★ stale.sha_unsourced",
+     lambda: [p.code for p in problems(led_sha, {"A.md": bare})]
+     == ["stale.sha_unsourced"]),
+    ("★ stale.sha_no_facts",
+     lambda: [p.code for p in problems(led_plain, {"A.md": bare})]
+     == ["stale.sha_no_facts"]),
+    ("★ stale.sha_no_facts·undeclared_section",
+     lambda: [p.code for p in problems(
+         led_plain, {"A.md": "## 5 history\n" + bare}, hist_secs=(""))
+     ] == ["stale.sha_no_facts"]),
     ]
 
 
-GATE = meta("陈旧断言检测", "sha 出处 / 退役名 / 测龄",
+def _cases_retired(fx):
+    """See `_cases()`: 4 cases in this group."""
+    led_plain = fx["led_plain"]
+    return [
+    ("stale.retired_unconfigured",
+     lambda: problems(led_plain, {"A.md": "still using the old component\n"},
+                      retired=()) == []),
+    ("stale.retired_reference",
+     lambda: problems(led_plain, {"A.md": "see NOTES-osmesa.md and the osmesa-branch\n"},
+                      retired=("osmesa",)) == []),
+    ("★ stale.retired_name",
+     lambda: [p.code for p in problems(
+         led_plain, {"A.md": "backend still uses osmesa\n"}, retired=("osmesa",))]
+     == ["stale.retired_name"]),
+    ("★ stale.retired_name·unnumbered_section",
+     lambda: [p.code for p in problems(
+         led_plain, {"A.md": "## FAQ\nstill using osmesa\n"}, retired=("osmesa",))]
+     == ["stale.retired_name"]),
+    ]
+
+
+def _cases_age(fx):
+    """See `_cases()`: 4 cases in this group."""
+    led_plain, led_fresh, led_old = fx["led_plain"], fx["led_fresh"], fx["led_old"]
+    return [
+    # (2) Age check (issue #3 item 2)
+    ("stale.age_fresh",
+     lambda: problems(led_fresh, {"A.md": "x\n"}, stale_days=30) == []),
+    ("stale.age_rule_off",
+     lambda: problems(led_old, {"A.md": "x\n"}, stale_days=None) == []),
+    ("★ stale.too_old",
+     lambda: [p.code for p in problems(
+         led_old, {"A.md": "x\n"}, stale_days=30)] == ["stale.too_old"]),
+    ("★ stale.measured_at_missing",
+     lambda: [p.code for p in problems(
+         led_plain, {"A.md": "x\n"}, stale_days=30)]
+     == ["stale.measured_at_missing"]),
+    ]
+
+
+def _cases_empty(fx):
+    """See `_cases()`: 3 cases in this group."""
+    led_sha, led_plain = fx["led_sha"], fx["led_plain"]
+    return [
+    # (1) Normal case: no report
+    ("stale.ok",
+     lambda: problems(led_sha,
+                      {"A.md": "deployed sha256 %s... (truncated)\n" % ("a" * 16)}) == []),
+    # (3) Empty input must be reported
+    ("★ stale.ledger_empty",
+     lambda: [p.code for p in problems({"facts": {}}, {"A.md": "x\n"})]
+     == ["stale.ledger_empty"]),
+    ("★ stale.no_docs",
+     lambda: [p.code for p in problems(led_plain, {})] == ["stale.no_docs"]),
+    ]
+
+
+def _cases():
+    """Assemble the 4 fixture groups. **Assembly only** -- the criteria live in
+    the per-group functions."""
+    fx = _cases_fixture()
+    return (
+    _cases_sha(fx)
+    + _cases_retired(fx)
+    + _cases_age(fx)
+    + _cases_empty(fx)
+    )
+
+
+GATE = meta("Stale-assertion gate", "sha provenance / retired names / age check",
             knobs=("REFLECT_DOCS", "REFLECT_FACTS", "REFLECT_HISTORY_SECS",
                    "REFLECT_RETIRED", "REFLECT_STALE_DAYS"),
             name_dependent=True)
 
 if __name__ == "__main__":
-    sys.exit(main_selftest_or(sys.argv[1:], "check_stale（陈旧断言：sha 出处 + 退役名）",
-                              _cases, run))
+    sys.exit(main_selftest_or(sys.argv[1:], "check_stale", _cases, run))
