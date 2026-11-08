@@ -77,7 +77,7 @@ MISSING host_symbol_that_does_not_exist                       ← 测试埋的�
 
 驱动不绑死某个构建：实测**基线**（`m1/build-clang` + `lld.js`）与**优化版**
 （`m1/build-exp-anchor` + `lld-wasm-only.js`）**都能驱动**，产物尺寸分别
-966 B / 976 B（差异来自优化档，都通过 ABI 检查）。
+966 B / [[browser_module_basic_bytes]] B（差异来自优化档，都通过 ABI 检查）。
 
 ⇒ 隔壁的体积线一有更好的产物，驱动**换路径即可用**，不需要改代码。
 
@@ -108,7 +108,7 @@ SPEC §4.5 要求 wasm32 与 wasm64 **都**支持，§9.7 要求两档都过同�
 **memory64 proposal 用 bit `0x04`**。纯 JS 实现（浏览器里没有 `wasm-dis` 可调）。
 
 ```
-wasm32 module: 976 B, memory64=false
+wasm32 module: [[wasm32_module_bytes]] B, memory64=false
 wasm64 module: 994 B, memory64=true     ← 不是静默降级的 32 位
 ```
 

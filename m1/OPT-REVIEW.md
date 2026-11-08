@@ -16,7 +16,7 @@
 | 基线实际是 `-O3`（不是 `-O1`） | ✅ **成立** | `ninja -t commands` 里 `-O1` 与 `-O3` 同时在，emcc 认最后一个 |
 | `anchor`（MinSizeRel）：clang brotli 16.40 → 13.30 MB | ✅ **成立** | 我复算 brotli q11 = 13,301,149（与它一致） |
 | 最好组合合计 21.80 MB，超预算 45% | ✅ **成立** | 独立算：13,301,149 + 8,495,303 = 21,796,452 |
-| **两份更小的产物还能编出东西** | ✅ **成立**（我独立跑的验收） | 我自己跑 `acceptance-full.mjs`：**10 PASS / 0 FAIL**，`minifn.so` 976 B |
+| **两份更小的产物还能编出东西** | ✅ **成立**（我独立跑的验收） | 我自己跑 `acceptance-full.mjs`：**10 PASS / 0 FAIL**，`minifn.so` [[browser_module_basic_bytes]] B |
 | `-fno-exceptions` 走不通，卡 `emscripten_longjmp` | ⚠️ **现象成立，但根因诊断不完整** | 见 §1 —— 这是本轮复核最有价值的更正 |
 | `wasm-opt -Oz` 无用 | ✅ 成立，且**它给出了正确解释** | 基线链接期已跑过 binaryen（`-O3`），我 handoff 那条判断的依据是错的 |
 

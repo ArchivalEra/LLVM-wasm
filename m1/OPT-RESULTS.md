@@ -16,7 +16,7 @@
 | 第二有效？ | **lld 只留 wasm 驱动**，brotli 9.66 → 8.50 MB（−12.1%） |
 | 第三有效？ | **关 C++ 异常 + RTTI**（`-fno-exceptions -fno-rtti`），clang 再 −5.2% → 12.61 MB（§5.2.1） |
 | 能到 15 MB 吗？ | **看口径，两个答案** —— 见下。**首拉 14.31 MB ⇒ 达标；总量 22.80 MB ⇒ 超 52%** |
-| 这个组合还能跑吗？ | **能。** 整链验收 **10 PASS / 0 FAIL**，`minifn.so` 976 B 与基线一致（§4） |
+| 这个组合还能跑吗？ | **能。** 整链验收 **10 PASS / 0 FAIL**，`minifn.so` [[browser_module_basic_bytes]] B 与基线一致（§4） |
 
 ### 0.1 ★ 预算口径：这是本单最要紧的一条（前几版答错了）
 
@@ -99,7 +99,7 @@ SPEC §6 的原文是：
 | 4 | `baseline` + 链接 `-Oz -flto` | 37,900,919 | 9,635,180 | 同 #2² | `python3 m1/exp-relink.py --tool lld --name lld_oz_lto --build m1/build-lld --emcc="-Oz -flto"` |
 
 ² 链接旗标不改代码语义，且 #2/#3/#4 的**输入对象完全相同**；验收按 #2 的 8 PASS 计。
-`wasmonly` 是**唯一**换了实现的一行，它单独跑了验收（#1 = 8 PASS，产物 976 B 与基线一致）。
+`wasmonly` 是**唯一**换了实现的一行，它单独跑了验收（#1 = 8 PASS，产物 [[browser_module_basic_bytes]] B 与基线一致）。
 
 ### 合计（SPEC §6 预算 = 15 MB）
 
@@ -121,7 +121,7 @@ M1_TAG=lean_nosjlj M1_CLANG_BIN=m1/build-exp-lean_nosjlj/bin M1_LLD_BIN=m1/build
 （`M1_TAG` 把这次验收的 `ARTIFACT` 键和基线那次分开，两趟的数字不会互相覆盖 ——
 见该脚本的注释。）
 
-⇒ 两份体积更小的产物**确实还能在 wasm 里编出 ABI 正确的 side module**（976 B，与基线同尺寸）。
+⇒ 两份体积更小的产物**确实还能在 wasm 里编出 ABI 正确的 side module**（[[browser_module_basic_bytes]] B，与基线同尺寸）。
 
 ---
 
@@ -176,7 +176,7 @@ em++: error: &&: No such file or directory ("&&" was expected to be an input fil
 
 | 产物 | 验收 | 结果 |
 |---|---|---|
-| **本轮最好组合**：clang `lean_nosjlj` + lld `wasmonly` | `M1_CLANG_BIN=m1/build-exp-lean_nosjlj/bin M1_LLD_BIN=m1/build-lld/bin M1_LLD_JS=lld-wasm-only.js node m1/acceptance-full.mjs` | **10 PASS / 0 FAIL**，`minifn.so` = 976 B（与基线同尺寸） |
+| **本轮最好组合**：clang `lean_nosjlj` + lld `wasmonly` | `M1_CLANG_BIN=m1/build-exp-lean_nosjlj/bin M1_LLD_BIN=m1/build-lld/bin M1_LLD_JS=lld-wasm-only.js node m1/acceptance-full.mjs` | **10 PASS / 0 FAIL**，`minifn.so` = [[browser_module_basic_bytes]] B（与基线同尺寸） |
 | `anchor` + `wasmonly` | 同上，`M1_CLANG_BIN=m1/build-exp-anchor/bin` | **10 PASS / 0 FAIL** |
 | lld `wasmonly`（单查） | `M1_LLD_BIN=m1/build-lld/bin M1_LLD_JS=lld-wasm-only.js node m1/acceptance-lld-only.mjs` | **8 PASS / 0 FAIL** |
 | lld `baseline`（对照） | `node m1/acceptance-lld-only.mjs` | 8 PASS / 0 FAIL |
@@ -258,7 +258,7 @@ LLVM 官方支持 `LLVM_ENABLE_EH=OFF`，所以这不是歪门邪道。
 |---|---|---|---|
 | `anchor`（`-Os`，带异常） | 51,580,817 | 13,301,149 | 10 PASS |
 | **`lean_nosjlj`（`-Os` + 关异常 + 关 RTTI）** | **48,069,274** | **12,614,129** | **10 PASS** |
-| 相对 `anchor` | **−6.8%** | **−5.2%** | 产物 976 B 同尺寸 |
+| 相对 `anchor` | **−6.8%** | **−5.2%** | 产物 [[browser_module_basic_bytes]] B 同尺寸 |
 
 ⇒ 异常 + RTTI 的代价是 **687 KB brotli**（约 5.2%）。
 比我原来的乐观预估（10–20%）小得多 —— 这也是一条**该被记下来的负结果**：

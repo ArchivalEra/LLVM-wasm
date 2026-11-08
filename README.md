@@ -287,13 +287,15 @@ merge。**判据**：`node release/check-vendored-sync.mjs`（闸门 `check_vend
 python3 -m ruff check      # ⇒ All checks passed
 ```
 
-配置在 `ruff.toml`：只选 GitRoll 能机械判定的那几族（`F`/`E9`/`B`/`C901`/`SIM`），
-复杂度阈值**取 15 对齐扫描器**而不是 ruff 默认的 10 —— 否则修的是 ruff 的偏好，
-不是被报的缺陷。`zreflect/*.py` 整层豁免：那是上游的字节，改了会让 vendored 同步闸门红。
+配置在 `ruff.toml`（vendored 自上游 Einfacht）：判据只有 `C901`（阈值 8）/ `F` /
+`E9` / `B` / `SIM` / `I` 等真 bug 族；**并且现在真的接进闸门了** —— 新套件的
+`check_lint` 每次提交真跑它（ruff 不在时明说 OFF，不是静默绿）。本仓自有的
+`zreflect/measure_llvm_wasm.py` / `check_vendored_sync.py` / `mail-read.py`
+已照新判据清理并登记 `PINNED:` 豁免（中文是台账数据与单语仓文案，不是用户消息）。
 
 每条历史告警的处置（`fix` / `accept` + 理由）记在
-[`gitroll-dispositions.json`](gitroll-dispositions.json)。**故意不接进闸门** ——
-台账本身也会腐烂，接进去只会多一个要维护的判据。判据只有一条：`ruff check` 绿。
+[`gitroll-dispositions.json`](gitroll-dispositions.json)。
+判据两条：`ruff check` 绿 + `registry --run commit` 全绿。
 
 ## 纪律
 

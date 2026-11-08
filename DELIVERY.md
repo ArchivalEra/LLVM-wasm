@@ -152,4 +152,4 @@ SPEC §6 的口径是「brotli ≤ 15 MB（**首拉**），支持分片懒加载
 每条事实旁写复跑命令并由闸门每次提交逐字执行。被推翻的断言进 `retractions.json`
 （当前 [[retractions_count]] 条），推断进 `questions/` 并注明哪个实验能结案。
 
-复跑全部闸门：`sh gates-selftest.sh`（每道闸门先证明自己会红）。
+复跑全部闸门：`python3 zreflect/harness.py`（`sh gates-selftest.sh` 是同一件事的老入口兼容壳）。
