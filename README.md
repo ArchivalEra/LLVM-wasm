@@ -306,6 +306,12 @@ python3 -m ruff check      # ⇒ All checks passed
 - 被推翻的断言进 [`retractions.json`](retractions.json)，不许悄悄回来当现状；
 - 改了产出数字的东西（如 `m0/run-*.sh`）⇒ 重跑它刷新证据日志，再 `facts.py` 重测。
 
+vendored 层的同步钉在 `zreflect/VENDORED.json` 的 pin（2026-11-12 起 =
+`0040c7ee`，上游 facts bootstrap 修复落地、questions/04 随之结案）。本仓
+README 是单语仓的单条目 `REFLECT_READMES` ⇒ push 闸门要求**每次推送同批更新
+本文件**（该判据的完整语义见 Einfacht `check_readme_sync.py` 的
+`problems_push`：单条目无「同批」可言，判据就是「必须在场」）。
+
 ## 许可
 
 本仓的 `LICENSE` 是 AGPL-3.0（与下游一致）。
