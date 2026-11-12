@@ -1244,6 +1244,12 @@ CASES = [
     # **Bootstrap end-to-end convergence**: `--init` -> measure -> two renders ->
     # registry all green.
     ("★ facts.fresh_repo_bootstraps_green", lambda: _fresh_bootstraps()),
+    # **Host-local knob carriers must never enter a fixture**: the fresh repo
+    # gets the carrier `--init` generates; a copytree of reflect-hooks/ used to
+    # smuggle the host's Einfacht.env in and made both bootstrap cases
+    # always-red (only in repos that have a local carrier -- CI stayed green).
+    ("★ facts.host_env_carrier_not_copied",
+     lambda: _host_env_carrier_not_copied()),
     # **Real-project shape**: a repo with build.sh / src / an existing README must
     # also complete the run. There was a time when "any .sh in the repo => the whole
     # chain FATAL"; this is that regression's guard.
@@ -1367,14 +1373,33 @@ def _copy_suite_into(d):
             if os.path.isdir(pkg) and any(x.endswith(".json")
                                           for x in os.listdir(pkg)):
                 shutil.copytree(pkg, os.path.join(dst_z, "lang", n))
-    hooks_src = os.path.join(os.path.dirname(src_z), "reflect-hooks")
-    if os.path.isdir(hooks_src):
-        shutil.copytree(hooks_src, os.path.join(d, "reflect-hooks"),
-                        ignore=shutil.ignore_patterns(
-                            "__pycache__", ".mypy_cache", "*.pyc"))
+    # Hook entry files: **roster copy, not copytree**. The host repo's local
+    # `Einfacht.env` (knob carrier, never tracked) is not a platform file --
+    # copytree used to drag it into the fixture, where `--init` writes its OWN
+    # env file for the fresh repo; two carriers with different doc names made
+    # `--render-doc` report `doc_has_no_home` and both bootstrap selftests
+    # structurally always-red (measured: work repo 14 PASS / 2 FAIL, clean
+    # clone 16 PASS / 0 FAIL -- the only difference was the local carrier).
+    # A fresh repo must start from `--init`'s generated carrier alone.
+    _copy_hooks_roster(src_z, d)
     ruff_conf = os.path.join(gate.tool_repo(), "ruff.toml")
     if os.path.isfile(ruff_conf):
         shutil.copy(ruff_conf, d)
+
+
+def _copy_hooks_roster(src_z, d):
+    """Copy the hook platform files (never the host's local knob carrier)."""
+    import shutil  # noqa: PLC0415
+    hooks_src = os.path.join(os.path.dirname(src_z), "reflect-hooks")
+    if not os.path.isdir(hooks_src):
+        return
+    os.makedirs(os.path.join(d, "reflect-hooks"))
+    for name in sorted(os.listdir(hooks_src)):
+        src = os.path.join(hooks_src, name)
+        if (os.path.isfile(src) and not name.startswith(".")
+                and name != "Einfacht.env"
+                and not name.endswith((".pyc", ".mypy_cache"))):
+            shutil.copy(src, os.path.join(d, "reflect-hooks", name))
 
 
 def _corrupt_ledger_rc():
@@ -1492,6 +1517,27 @@ def _bootstrap_steps():
           "PRINCIPLES.md"], True),
         ([sys.executable, "zreflect/registry.py", "--run", "commit"], True),
     ]
+
+
+def _host_env_carrier_not_copied():
+    """A fixture repo must not inherit this repo's local `Einfacht.env`.
+
+    Three-tier: with the carrier present (normal) => absent in fixture; with a
+    sentinel carrier => still absent (not just "this repo has none"); and the
+    platform files are still there (the copy did happen -- an empty fixture
+    would pass by doing nothing).
+    """
+    import shutil  # noqa: PLC0415
+    import tempfile  # noqa: PLC0415
+    d = tempfile.mkdtemp()
+    try:
+        _copy_suite_into(d)
+        hooks = os.path.join(d, "reflect-hooks")
+        return (not os.path.isfile(os.path.join(hooks, "Einfacht.env"))
+                and os.path.isfile(os.path.join(hooks, "gate.py"))
+                and os.path.isfile(os.path.join(hooks, "einfacht-env.sh")))
+    finally:
+        shutil.rmtree(d, True)
 
 
 def _real_repo_shaped():

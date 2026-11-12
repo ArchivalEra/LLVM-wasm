@@ -6,8 +6,8 @@
 
 **Blocked by:** 上游 Einfacht（`ArchivalEra/Einfacht`）修复并发布含修复的 commit。
 
-**Status:** ready-for-human
-（等上游 Einfacht #34 修复后同步重验；理由写在下一行。）
+**Status:** resolved
+（2026-11-12 上游 0040c7e 落地 #34 同族修复，vendored 同步后实收，证据见下。）
 
 **Settling:** `mv reflect-hooks/Einfacht.env /tmp/hold && python3 zreflect/facts.py --selftest && mv /tmp/hold reflect-hooks/Einfacht.env` —— 挪走宿主 env 载体后 16 PASS / 0 FAIL、
 挪回后恢复 14 PASS / 2 FAIL（2026-11-08 实测，与上游 #34 §4 的隔离变量一致）。
@@ -28,5 +28,9 @@ rc=0 ⇒ 本案结案；仍红 ⇒ 修法与 #34 不同，回上游再报。
 
 **结算步骤**：
 
-- [ ] 上游 #34 修复落地，vendored 层同步到含修复的 commit
-- [ ] `python3 zreflect/harness.py` rc=0（不挪 env），`Status:` 改 `resolved`
+- [x] 上游 #34 修复落地，vendored 层同步到含修复的 commit
+  （2026-11-12：pin `351dc7b4` → `0040c7ee`，其 `facts.py` 按名册拷 hooks、
+  排除宿主本地 env 载体 —— 正是上游 #34 的修复）
+- [x] `python3 zreflect/harness.py` rc=0（不挪 env）—— 实测 2026-11-12：
+  harness rc=0、`facts.py --selftest` **17 PASS / 0 FAIL**（此前 14 PASS / 2 FAIL）、
+  commit 相位 11 ran / 0 failed / 6 off。`Status:` 已改 `resolved`。

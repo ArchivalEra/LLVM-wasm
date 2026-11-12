@@ -1,8 +1,8 @@
 {
   "_why": "本仓 vendored 的是 Einfacht（ArchivalEra/Einfacht）的机制层。这份记录是「同步到哪个 commit」的唯一产地 —— 判据 release/check-vendored-sync.mjs 从远端重拉那个 commit 并逐文件比字节。local 里的文件是本仓自己的东西（数据层 / 本仓配置），它们与上游不同不是漂移。",
   "repo": "ArchivalEra/Einfacht",
-  "commit": "351dc7b4c7e7610647438be3cac8898ba8a33923",
-  "synced": "2026-11-08",
+  "commit": "0040c7ee0c4bc4b89b8da12751a782620652079e",
+  "synced": "2026-11-12",
   "local": [
     "zreflect/measure_llvm_wasm.py",
     "zreflect/check_vendored_sync.py",
