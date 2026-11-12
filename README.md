@@ -297,6 +297,13 @@ python3 -m ruff check      # ⇒ All checks passed
 [`gitroll-dispositions.json`](gitroll-dispositions.json)。
 判据两条：`ruff check` 绿 + `registry --run commit` 全绿。
 
+**CI 等价评估**（[`.github/workflows/quality-assessment.yml`](.github/workflows/quality-assessment.yml)）：
+GitHub Code Quality 在个人账号不可用 ⇒ 用本仓**已有**的检查在 CI 里产出可比摘要
+（Einfacht commit 相位闸门 / harness 自证 / ruff 0.17.3 / facts replay；
+PR + 每周一 + 手动触发）。**不新增 lint 规则、失败如实报 rc**。
+重验收套件（M0/M1/driver/browser）需要 wasm 构建，CI 不可复现 ⇒ 不进这个
+workflow，不伪装（`release.yml` 里本就明说 SKIP 的那批）。
+
 ## 纪律
 
 本仓用 [Einfacht](https://github.com/ArchivalEra/Einfacht)（vendored 在 `zreflect/`）：
