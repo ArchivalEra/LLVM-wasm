@@ -1,0 +1,92 @@
+name: Code quality assessment
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 6 * * 1'
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Local equivalent of GitHub Code Quality for accounts without Team/Enterprise.
+# This repo runs the checks it already owns (Einfacht commit-phase gates, harness
+# self-proof, ruff); this workflow only makes the results visible and comparable.
+# The heavy acceptance suites (M0/M1/driver/browser) need wasm builds that are not
+# reproducible in CI -- release.yml documents that boundary; we do not fake them.
+jobs:
+  assess:
+    name: Assess ${{ github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install ruff
+        # Same pinned version as the upstream suite's CI criterion.
+        run: pip install 'ruff==0.17.3'
+
+      - name: Run checks
+        id: checks
+        shell: bash
+        run: |
+          set +e
+          # Knobs are the repo's own carrier; the gates read them from the file
+          # exactly like the local hooks do.
+          set -a; . reflect-hooks/Einfacht.env; set +a
+          declare -a names=(einfacht-commit-gates gates-selftest ruff-repo facts-replay)
+          declare -a cmds=(
+            'python3 zreflect/registry.py --run commit'
+            'python3 zreflect/harness.py'
+            'python3 -m ruff check .'
+            'python3 zreflect/check_facts_replay.py'
+          )
+          : > results.tsv
+          for i in "${!names[@]}"; do
+            n="${names[$i]}"; c="${cmds[$i]}"
+            printf '%s\t%s\t' "$n" "$c" >> results.tsv
+            bash -c "$c" > "/tmp/$n.log" 2>&1
+            rc=$?
+            printf '%s\n' "$rc" >> results.tsv
+            printf '  %s: rc=%s\n' "$n" "$rc"
+          done
+
+      - name: Publish summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Code quality assessment — LLVM-wasm"
+            echo ""
+            echo "| Check | Command | Result |"
+            echo "|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ -f results.tsv ]; then
+            while IFS=$'\t' read -r n c rc; do
+              badge=$([ "$rc" = "0" ] && echo PASS || echo "FAIL (rc=$rc)")
+              printf '| %s | \`%s\` | %s |\n' "$n" "$c" "$badge" >> "$GITHUB_STEP_SUMMARY"
+            done < results.tsv
+          else
+            echo "| (no results) | — | — |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          {
+            echo ""
+            echo "Assessment uses the repository's existing gates (no new lint rules)."
+            echo "Off gates are \"not enabled\", not passed: 6 of 14 report off in this repo (missing specs)."
+            echo "GitRoll context: findings are triaged as own / vendored bytes / scanner-provenance issue; see trash-can@gitroll/2026-11-12/_provenance-f-request.md."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-logs
+          path: /tmp/*.log
+          if-no-files-found: ignore
