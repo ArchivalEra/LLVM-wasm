@@ -304,6 +304,12 @@ PR + 每周一 + 手动触发）。**不新增 lint 规则、失败如实报 rc*
 重验收套件（M0/M1/driver/browser）需要 wasm 构建，CI 不可复现 ⇒ 不进这个
 workflow，不伪装（`release.yml` 里本就明说 SKIP 的那批）。
 
+**shellcheck 跑批**（2026-11-12，v0.10.0，外部验证轮，不进闸门）：21 个 .sh 全扫
+12 findings ⇒ 修 1（`m0/run-counterexamples.sh` 的 `cd` 无守卫，runner 重跑后证据
+PASS 数逐项不变）+ 11 条有意/误报逐条留痕（`CDPATH= cd` 空赋值即目的、emcc
+`-sKEY=v1,v2` 单 token、诊断用 ls、printf 模板不展开、非固定 source 即插件机制）。
+处置全文在 [`gitroll-dispositions.json`](gitroll-dispositions.json) 的 shellcheck 条目。
+
 ## 纪律
 
 本仓用 [Einfacht](https://github.com/ArchivalEra/Einfacht)（vendored 在 `zreflect/`）：

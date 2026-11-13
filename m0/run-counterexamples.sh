@@ -21,7 +21,7 @@ if [ "$ARCH" = wasm64 ]; then TRIPLE=wasm64-unknown-emscripten; LD_M=wasm64; LIB
 
 WORK="$ROOT/build-$ARCH"
 mkdir -p "$WORK"
-cd "$WORK"
+cd "$WORK" || exit 1
 fails=0
 
 # ---------------------------------------------------------------- SPEC 9.5
