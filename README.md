@@ -310,21 +310,6 @@ PASS 数逐项不变）+ 11 条有意/误报逐条留痕（`CDPATH= cd` 空赋�
 `-sKEY=v1,v2` 单 token、诊断用 ls、printf 模板不展开、非固定 source 即插件机制）。
 处置全文在 [`gitroll-dispositions.json`](gitroll-dispositions.json) 的 shellcheck 条目。
 
-## 纪律
-
-本仓用 [Einfacht](https://github.com/ArchivalEra/Einfacht)（vendored 在 `zreflect/`）：
-**每句「现在如此」都要能复跑证明**。三条最常撞上的：
-
-- 活状态文档里**只写实测**；推断写进 [`questions/`](questions/) 并注明哪个实验能结案；
-- 被推翻的断言进 [`retractions.json`](retractions.json)，不许悄悄回来当现状；
-- 改了产出数字的东西（如 `m0/run-*.sh`）⇒ 重跑它刷新证据日志，再 `facts.py` 重测。
-
-vendored 层的同步钉在 `zreflect/VENDORED.json` 的 pin（2026-11-12 起 =
-`0040c7ee`，上游 facts bootstrap 修复落地、questions/04 随之结案）。本仓
-README 是单语仓的单条目 `REFLECT_READMES` ⇒ push 闸门要求**每次推送同批更新
-本文件**（该判据的完整语义见 Einfacht `check_readme_sync.py` 的
-`problems_push`：单条目无「同批」可言，判据就是「必须在场」）。
-
 ## 许可
 
 本仓的 `LICENSE` 是 AGPL-3.0（与下游一致）。
